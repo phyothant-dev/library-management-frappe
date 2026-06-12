@@ -1,16 +1,6 @@
 import React from "react";
 import { BookOpen, Calendar } from "lucide-react";
-
-export interface Member {
-  id: number;
-  name: string;
-  email: string;
-  memberSince: string;
-  activeLoans: number;
-  totalBorrowed: number;
-  status: "active" | "overdue" | "suspended";
-  avatar: string;
-}
+import type { Member } from "./data";
 
 interface MemberRowProps {
   member: Member;
@@ -31,17 +21,11 @@ export function MemberRow({ member }: MemberRowProps) {
     >
       <td className="py-3.5 px-4">
         <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0"
-            style={{
-              background: "rgba(201,151,58,0.2)",
-              fontFamily: "'Playfair Display', serif",
-              fontWeight: 600,
-              color: "var(--primary)",
-            }}
-          >
-            {member.avatar}
-          </div>
+          <img
+            src={member.avatarUrl}
+            alt={member.name}
+            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+          />
           <div>
             <p className="text-sm" style={{ color: "var(--foreground)", fontFamily: "'Inter', sans-serif", fontWeight: 500 }}>
               {member.name}

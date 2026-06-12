@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { Toaster, toast } from "sonner";
 import { BookMarked, Shield, BookOpen, Users, BarChart3, Star, ArrowRight } from "lucide-react";
 import { LibrarianApp } from "./components/LibrarianApp";
 import { MemberApp } from "./components/MemberApp";
-import { BorrowRequest, ReturnRequest, BookItem } from "./components/data";
+import { BorrowRequest, ReturnRequest, BookItem, Member, MEMBERS } from "./components/data";
 import { getBooks, bookToItem } from "../service/api";
+import { getMembers, createMember, createUser, frappeMemberToMember, memberToFrappePayload } from "../service/member";
 
 type Role = null | "librarian" | "member";
 
@@ -119,15 +121,57 @@ export default function App() {
   const [role, setRole] = useState<Role>(null);
   const [books, setBooks] = useState<BookItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<Member[]>(MEMBERS);
+  const [currentMemberId, setCurrentMemberId] = useState<number | null>(null);
   const [borrowRequests, setBorrowRequests] = useState<BorrowRequest[]>([]);
   const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
+  const membersFetched = useRef(false);
 
   useEffect(() => {
-    getBooks()
-      .then(data => setBooks(data.map(bookToItem)))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    const load = async () => {
+      try {
+        const [bookData, memberData] = await Promise.all([
+          getBooks(),
+          getMembers().catch(() => []),
+        ]);
+        setBooks(bookData.map(bookToItem));
+        if (memberData.length > 0 && !membersFetched.current) {
+          membersFetched.current = true;
+          const apiMembers: Member[] = memberData.map(frappeMemberToMember);
+          setMembers(prev => {
+            const emails = new Set(prev.map(m => m.email.toLowerCase()));
+            const merged = [...prev];
+            for (const am of apiMembers) {
+              if (!emails.has(am.email.toLowerCase())) {
+                emails.add(am.email.toLowerCase());
+                merged.push(am);
+              }
+            }
+            return merged;
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, []);
+
+  const addMember = async (m: Member) => {
+    setMembers(prev => [...prev, m]);
+    try {
+      const user = await createUser(m.email, m.name, ["Library Member"]);
+      const payload = { ...memberToFrappePayload(m), user: user.name };
+      await createMember(payload);
+    } catch (err) {
+      console.error("Failed to save member to Frappe:", err);
+    }
+    toast.success("Member registered", {
+      description: `${m.name} has been added to the library.`,
+    });
+  };
 
   const addBorrowRequest = (req: BorrowRequest) =>
     setBorrowRequests(prev => [req, ...prev]);
@@ -148,33 +192,47 @@ export default function App() {
       prev.map(r => r.id === id ? { ...r, status: "confirmed" as const } : r)
     );
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
-      <p style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.2rem", color: "var(--muted-foreground)" }}>Connecting to Arcanum...</p>
-    </div>
+  return (
+    <>
+      <Toaster position="top-center" richColors />
+      {renderContent()}
+    </>
   );
 
-  if (role === null) return <LoginScreen onSelect={setRole} />;
-  if (role === "librarian") return (
-    <LibrarianApp
-      onSwitchRole={() => setRole(null)}
-      books={books}
-      onBooksChange={setBooks}
-      borrowRequests={borrowRequests}
-      onUpdateBorrowRequest={updateBorrowRequest}
-      returnRequests={returnRequests}
-      onConfirmReturn={confirmReturn}
-    />
-  );
-  if (role === "member") return (
-    <MemberApp
-      onSwitchRole={() => setRole(null)}
-      books={books}
-      borrowRequests={borrowRequests}
-      onAddRequest={addBorrowRequest}
-      returnRequests={returnRequests}
-      onAddReturnRequest={addReturnRequest}
-    />
-  );
-  return null;
+  function renderContent() {
+    if (loading) return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
+        <p style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.2rem", color: "var(--muted-foreground)" }}>Connecting to Arcanum...</p>
+      </div>
+    );
+
+    if (role === null) return <LoginScreen onSelect={setRole} />;
+    if (role === "librarian") return (
+      <LibrarianApp
+        onSwitchRole={() => { setRole(null); setCurrentMemberId(null); }}
+        books={books}
+        onBooksChange={setBooks}
+        members={members}
+        onAddMember={addMember}
+        borrowRequests={borrowRequests}
+        onUpdateBorrowRequest={updateBorrowRequest}
+        returnRequests={returnRequests}
+        onConfirmReturn={confirmReturn}
+      />
+    );
+    if (role === "member") return (
+      <MemberApp
+        onSwitchRole={() => { setRole(null); setCurrentMemberId(null); }}
+        books={books}
+        members={members}
+        currentMemberId={currentMemberId}
+        onLogin={setCurrentMemberId}
+        borrowRequests={borrowRequests}
+        onAddRequest={addBorrowRequest}
+        returnRequests={returnRequests}
+        onAddReturnRequest={addReturnRequest}
+      />
+    );
+    return null;
+  }
 }

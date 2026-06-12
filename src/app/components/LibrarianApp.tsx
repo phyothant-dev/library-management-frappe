@@ -9,7 +9,7 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import { MEMBERS, LOANS, MONTHLY_DATA, GENRE_DATA, BookItem, Member, BorrowRequest, ReturnRequest } from "./data";
+import { LOANS, MONTHLY_DATA, GENRE_DATA, BookItem, Member, BorrowRequest, ReturnRequest } from "./data";
 import { createBook, deleteBook, bookToItem, itemToBook } from "../../service/api";
 
 type Tab = "dashboard" | "catalog" | "members" | "loans" | "requests";
@@ -145,11 +145,17 @@ function AddMemberModal({ onClose, onAdd }: { onClose: () => void; onAdd: (m: Me
   const submit = () => {
     if (!form.name || !form.email) return;
     const id = Date.now();
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const today = `${year}-${month}-${day}`;
+    const nextYear = `${year + 1}-${month}-${day}`;
     onAdd({
       id, name: form.name, email: form.email, phone: form.phone,
-      memberSince: "Jun 2026", activeLoans: 0, totalBorrowed: 0, status: "active",
+      memberSince: today, activeLoans: 0, totalBorrowed: 0, status: "active",
       avatarUrl: form.avatarUrl || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&w=80&h=80&q=80",
-      tier: form.tier as any, memberId: `ARC-${String(id).slice(-5)}`, expiryDate: "Jun 2027",
+      tier: form.tier as any, memberId: `ARC-${String(id).slice(-5)}`, expiryDate: nextYear,
     });
     onClose();
   };
@@ -253,18 +259,19 @@ function BookCard({ book, onDelete }: { book: BookItem; onDelete: (id: string) =
 
 /* ─── LibrarianApp ───────────────────────────────────────────────────────── */
 export function LibrarianApp({
-  onSwitchRole, books, onBooksChange, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn,
+  onSwitchRole, books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn,
 }: {
   onSwitchRole: () => void;
   books: BookItem[];
   onBooksChange: (books: BookItem[]) => void;
+  members: Member[];
+  onAddMember: (m: Member) => void;
   borrowRequests: BorrowRequest[];
   onUpdateBorrowRequest: (id: number, status: "approved" | "rejected") => void;
   returnRequests: ReturnRequest[];
   onConfirmReturn: (id: number) => void;
 }) {
   const [tab, setTab] = useState<Tab>("dashboard");
-  const [members, setMembers] = useState<Member[]>(MEMBERS);
   const [search, setSearch] = useState("");
   const [genreFilter, setGenreFilter] = useState("All");
   const [showAddBook, setShowAddBook] = useState(false);
@@ -832,7 +839,7 @@ export function LibrarianApp({
         </main>
       </div>
 
-      {showAddMember && <AddMemberModal onClose={() => setShowAddMember(false)} onAdd={m => setMembers(prev => [...prev, m])} />}
+      {showAddMember && <AddMemberModal onClose={() => setShowAddMember(false)} onAdd={onAddMember} />}
     </div>
   );
 }

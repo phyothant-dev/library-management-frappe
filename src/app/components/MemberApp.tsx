@@ -4,11 +4,53 @@ import {
   BookMarked, X, CheckCircle2, AlertTriangle,
   Calendar, Award, ArrowRight, RefreshCw, Heart, Bookmark, Send, RotateCcw,
 } from "lucide-react";
-import { LOANS, BookItem, Member, MEMBERS, BorrowRequest, ReturnRequest, LoanRecord } from "./data";
+import { LOANS, BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord } from "./data";
 
 type MemberTab = "browse" | "saved" | "myloans" | "membership";
 
-const CURRENT_MEMBER: Member = MEMBERS[0];
+function LoginScreen({ members, onLogin }: { members: Member[]; onLogin: (id: number) => void }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-8" style={{ background: "var(--background)" }}>
+      <div className="w-full max-w-lg">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: "var(--primary)" }}>
+            <BookMarked size={20} color="#fff" />
+          </div>
+          <div>
+            <p style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.3rem", color: "var(--foreground)" }}>Arcanum</p>
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "var(--muted-foreground)", letterSpacing: "0.12em", textTransform: "uppercase" }}>Member Login</p>
+          </div>
+        </div>
+        <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.5rem", color: "var(--foreground)" }}>Select your account</h2>
+        <p className="mt-1 mb-6 text-sm" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>
+          Choose your member profile to access the library portal.
+        </p>
+        <div className="space-y-3">
+          {members.map(m => {
+            const status = m.status === "active" ? "#15803d" : m.status === "suspended" ? "#dc2626" : "#92400e";
+            return (
+              <button key={m.id} onClick={() => onLogin(m.id)}
+                className="w-full text-left p-4 rounded-2xl border-2 transition-all hover:shadow-md bg-white"
+                style={{ borderColor: "var(--border)", cursor: "pointer" }}>
+                <div className="flex items-center gap-4">
+                  <img src={m.avatarUrl} alt={m.name} className="w-12 h-12 rounded-full object-cover" />
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, color: "var(--foreground)" }}>{m.name}</p>
+                    <p className="text-xs mt-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{m.memberId} · {m.tier}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full" style={{ background: status }} />
+                    <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{m.status}</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const TIER_CONFIG = {
   Bronze: {
@@ -397,15 +439,23 @@ const REQUEST_STATUS_STYLE: Record<string, { bg: string; color: string; label: s
 
 /* ─── MemberApp ───────────────────────────────────────────────────────────── */
 export function MemberApp({
-  onSwitchRole, books, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest,
+  onSwitchRole, books, members, currentMemberId, onLogin, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest,
 }: {
   onSwitchRole: () => void;
   books: BookItem[];
+  members: Member[];
+  currentMemberId: number | null;
+  onLogin: (id: number) => void;
   borrowRequests: BorrowRequest[];
   onAddRequest: (req: BorrowRequest) => void;
   returnRequests: ReturnRequest[];
   onAddReturnRequest: (req: ReturnRequest) => void;
 }) {
+  if (currentMemberId === null) {
+    return <LoginScreen members={members} onLogin={onLogin} />;
+  }
+
+  const member = members.find(m => m.id === currentMemberId) ?? members[0];
   const [tab, setTab] = useState<MemberTab>("browse");
   const [search, setSearch] = useState("");
   const [genreFilter, setGenreFilter] = useState("All");
@@ -415,7 +465,6 @@ export function MemberApp({
   const [returningLoan, setReturningLoan] = useState<LoanRecord | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set(["2", "4", "9"]));
 
-  const member = CURRENT_MEMBER;
   const tier = TIER_CONFIG[member.tier];
   const myLoans = LOANS.filter(l => l.memberId === member.id);
   const myRequests = borrowRequests.filter(r => r.memberId === member.id);

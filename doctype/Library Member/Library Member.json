@@ -1,0 +1,190 @@
+{
+  "name": "Library Member",
+  "owner": "phyot9964@gmail.com",
+  "creation": "2026-06-11 15:53:42.600817",
+  "modified": "2026-06-11 21:56:40.952442",
+  "modified_by": "phyot9964@gmail.com",
+  "docstatus": 0,
+  "idx": 0,
+  "read_only": 0,
+  "in_create": 0,
+  "protect_attached_files": 0,
+  "naming_rule": "Expression",
+  "autoname": "ARC-.#####",
+  "allow_rename": 1,
+  "module": "Library Management",
+  "is_submittable": 0,
+  "istable": 0,
+  "issingle": 0,
+  "is_tree": 0,
+  "is_calendar_and_gantt": 0,
+  "editable_grid": 0,
+  "quick_entry": 0,
+  "grid_page_length": 50,
+  "rows_threshold_for_grid_search": 20,
+  "allow_bulk_edit": 1,
+  "track_changes": 1,
+  "track_seen": 0,
+  "track_views": 0,
+  "custom": 1,
+  "beta": 0,
+  "is_virtual": 0,
+  "queue_in_background": 0,
+  "max_attachments": 0,
+  "hide_toolbar": 0,
+  "allow_copy": 0,
+  "allow_import": 0,
+  "allow_events_in_timeline": 0,
+  "allow_auto_repeat": 0,
+  "make_attachments_public": 0,
+  "show_title_field_in_link": 0,
+  "translated_doctype": 0,
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "force_re_route_to_default_view": 0,
+  "document_type": "",
+  "show_preview_popup": 0,
+  "show_name_in_global_search": 0,
+  "email_append_to": 0,
+  "has_web_view": 0,
+  "allow_guest_to_view": 0,
+  "index_web_pages_for_search": 1,
+  "engine": "InnoDB",
+  "row_format": "Dynamic",
+  "doctype": "DocType",
+  "fields": [
+    {
+      "fieldname": "section_break_6myd",
+      "fieldtype": "Section Break",
+      "idx": 1
+    },
+    {
+      "label": "Full Name",
+      "fieldtype": "Data",
+      "fieldname": "full_name",
+      "idx": 2,
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "label": "Email",
+      "fieldtype": "Data",
+      "fieldname": "email",
+      "idx": 3,
+      "reqd": 1,
+      "options": "Email",
+      "unique": 1
+    },
+    {
+      "label": "Phone",
+      "fieldtype": "Data",
+      "fieldname": "phone",
+      "idx": 4,
+      "options": "Phone"
+    },
+    {
+      "label": "Tier",
+      "fieldtype": "Select",
+      "fieldname": "tier",
+      "idx": 5,
+      "reqd": 1,
+      "options": "Bronze\nSilver\nGold",
+      "in_list_view": 1
+    },
+    {
+      "label": "Status",
+      "fieldtype": "Select",
+      "fieldname": "status",
+      "idx": 6,
+      "reqd": 1,
+      "options": "Active\nOverdue\nSuspended",
+      "default": "Active",
+      "in_list_view": 1
+    },
+    {
+      "label": "Avatar",
+      "fieldtype": "Attach Image",
+      "fieldname": "avatar",
+      "idx": 7
+    },
+    {
+      "label": "Member Since",
+      "fieldtype": "Date",
+      "fieldname": "member_since",
+      "idx": 8,
+      "reqd": 1,
+      "default": "Today"
+    },
+    {
+      "label": "Expiry Date",
+      "fieldtype": "Date",
+      "fieldname": "expiry_date",
+      "idx": 9,
+      "reqd": 1
+    },
+    {
+      "label": "User",
+      "fieldtype": "Link",
+      "fieldname": "user",
+      "idx": 10,
+      "options": "User"
+    },
+    {
+      "label": "Active Loans",
+      "fieldtype": "Int",
+      "fieldname": "active_loans",
+      "idx": 11,
+      "default": "0",
+      "read_only": 1
+    },
+    {
+      "label": "Total Borrowed",
+      "fieldtype": "Int",
+      "fieldname": "total_borrowed",
+      "idx": 12,
+      "default": "0",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "idx": 1,
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1,
+      "print": 1,
+      "email": 1
+    },
+    {
+      "role": "Librarian",
+      "idx": 2,
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1,
+      "print": 1,
+      "email": 1
+    },
+    {
+      "role": "Library Member",
+      "idx": 3,
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "report": 1,
+      "export": 1,
+      "share": 1,
+      "print": 1,
+      "email": 1
+    }
+  ]
+}
