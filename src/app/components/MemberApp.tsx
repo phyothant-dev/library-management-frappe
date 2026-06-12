@@ -4,7 +4,7 @@ import {
   BookMarked, X, CheckCircle2, AlertTriangle,
   Calendar, Award, ArrowRight, RefreshCw, Heart, Bookmark, Send, RotateCcw,
 } from "lucide-react";
-import { BOOKS, LOANS, BookItem, Member, MEMBERS, BorrowRequest, ReturnRequest, LoanRecord } from "./data";
+import { LOANS, BookItem, Member, MEMBERS, BorrowRequest, ReturnRequest, LoanRecord } from "./data";
 
 type MemberTab = "browse" | "saved" | "myloans" | "membership";
 
@@ -32,7 +32,7 @@ function BookDetailModal({
   book, onClose, onBorrow, isSaved, onToggleSave,
 }: {
   book: BookItem; onClose: () => void; onBorrow: (b: BookItem) => void;
-  isSaved: boolean; onToggleSave: (id: number) => void;
+  isSaved: boolean; onToggleSave: (id: string) => void;
 }) {
   const avail = book.totalCopies - book.borrowedCopies;
   return (
@@ -225,7 +225,7 @@ function BrowseBookCard({
   book, isSaved, onToggleSave, onDetail, onBorrow,
 }: {
   book: BookItem; isSaved: boolean;
-  onToggleSave: (id: number) => void;
+  onToggleSave: (id: string) => void;
   onDetail: (b: BookItem) => void;
   onBorrow: (b: BookItem) => void;
 }) {
@@ -284,8 +284,8 @@ function BrowseBookCard({
 function SavedBooksPage({
   savedIds, books, onToggleSave, onDetail, onBorrow,
 }: {
-  savedIds: Set<number>; books: BookItem[];
-  onToggleSave: (id: number) => void;
+  savedIds: Set<string>; books: BookItem[];
+  onToggleSave: (id: string) => void;
   onDetail: (b: BookItem) => void;
   onBorrow: (b: BookItem) => void;
 }) {
@@ -397,9 +397,10 @@ const REQUEST_STATUS_STYLE: Record<string, { bg: string; color: string; label: s
 
 /* ─── MemberApp ───────────────────────────────────────────────────────────── */
 export function MemberApp({
-  onSwitchRole, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest,
+  onSwitchRole, books, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest,
 }: {
   onSwitchRole: () => void;
+  books: BookItem[];
   borrowRequests: BorrowRequest[];
   onAddRequest: (req: BorrowRequest) => void;
   returnRequests: ReturnRequest[];
@@ -412,14 +413,14 @@ export function MemberApp({
   const [requestedBook, setRequestedBook] = useState<BookItem | null>(null);
   const [returnStep, setReturnStep] = useState<"confirm" | "sent" | null>(null);
   const [returningLoan, setReturningLoan] = useState<LoanRecord | null>(null);
-  const [savedIds, setSavedIds] = useState<Set<number>>(new Set([2, 4, 9]));
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set(["2", "4", "9"]));
 
   const member = CURRENT_MEMBER;
   const tier = TIER_CONFIG[member.tier];
   const myLoans = LOANS.filter(l => l.memberId === member.id);
   const myRequests = borrowRequests.filter(r => r.memberId === member.id);
 
-  const toggleSave = (id: number) => {
+  const toggleSave = (id: string) => {
     setSavedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -430,7 +431,7 @@ export function MemberApp({
   const myReturnRequests = returnRequests.filter(r => r.memberId === member.id);
 
   const handleReturnSubmit = (loan: LoanRecord) => {
-    const book = BOOKS.find(b => b.id === loan.bookId);
+    const book = books.find(b => b.id === loan.bookId);
     onAddReturnRequest({
       id: Date.now(),
       loanId: loan.id,
@@ -465,7 +466,7 @@ export function MemberApp({
     setRequestedBook(book);
   };
 
-  const filteredBooks = BOOKS.filter(b => {
+  const filteredBooks = books.filter(b => {
     const q = search.toLowerCase();
     return (b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)) &&
       (genreFilter === "All" || b.genre === genreFilter);
@@ -552,7 +553,7 @@ export function MemberApp({
               {tab === "membership" && "My Membership"}
             </h1>
             <p className="text-xs mt-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>
-              {tab === "browse" && `${BOOKS.filter(b => b.available).length} books available to borrow`}
+              {tab === "browse" && `${books.filter(b => b.available).length} books available to borrow`}
               {tab === "saved" && (savedIds.size > 0 ? `${savedIds.size} books saved · tap the heart to remove` : "No books saved yet")}
               {tab === "myloans" && `${myLoans.filter(l => l.status !== "returned").length} active · ${myRequests.filter(r => r.status === "pending").length} pending approval`}
               {tab === "membership" && `${member.memberId} · ${member.tier} Tier`}
@@ -602,7 +603,7 @@ export function MemberApp({
           {/* ── SAVED ── */}
           {tab === "saved" && (
             <SavedBooksPage
-              savedIds={savedIds} books={BOOKS}
+              savedIds={savedIds} books={books}
               onToggleSave={toggleSave}
               onDetail={setDetailBook}
               onBorrow={handleBorrowRequest}
@@ -694,7 +695,7 @@ export function MemberApp({
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
                     {myLoans.map(loan => {
-                      const book = BOOKS.find(b => b.id === loan.bookId);
+                      const book = books.find(b => b.id === loan.bookId);
                       const isOverdue = loan.status === "overdue";
                       const returnReq = myReturnRequests.find(r => r.loanId === loan.id);
                       const isReturnPending = returnReq?.status === "pending";
@@ -933,7 +934,7 @@ export function MemberApp({
       {returningLoan && returnStep === "confirm" && (
         <ReturnConfirmModal
           loan={returningLoan}
-          book={BOOKS.find(b => b.id === returningLoan.bookId)}
+          book={books.find(b => b.id === returningLoan.bookId)}
           onClose={() => { setReturningLoan(null); setReturnStep(null); }}
           onConfirm={() => handleReturnSubmit(returningLoan)}
         />

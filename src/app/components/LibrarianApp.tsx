@@ -9,7 +9,8 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import { BOOKS, MEMBERS, LOANS, MONTHLY_DATA, GENRE_DATA, BookItem, Member, BorrowRequest, ReturnRequest } from "./data";
+import { MEMBERS, LOANS, MONTHLY_DATA, GENRE_DATA, BookItem, Member, BorrowRequest, ReturnRequest } from "./data";
+import { createBook, deleteBook, bookToItem, itemToBook } from "../../service/api";
 
 type Tab = "dashboard" | "catalog" | "members" | "loans" | "requests";
 
@@ -43,17 +44,26 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 /* ─── Add Book Modal ─────────────────────────────────────────────────────── */
 function AddBookModal({ onClose, onAdd }: { onClose: () => void; onAdd: (b: BookItem) => void }) {
   const [form, setForm] = useState({ title: "", author: "", genre: "Historical", year: "2024", isbn: "", copies: "1", coverUrl: "", description: "" });
+  const [saving, setSaving] = useState(false);
   const handle = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
-  const submit = () => {
+  const submit = async () => {
     if (!form.title || !form.author) return;
-    onAdd({
-      id: Date.now(), title: form.title, author: form.author, genre: form.genre,
-      year: parseInt(form.year), available: true, rating: 4.0,
-      totalCopies: parseInt(form.copies), borrowedCopies: 0, isbn: form.isbn,
-      coverUrl: form.coverUrl || "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&w=300&h=420&q=80",
-      description: form.description,
-    });
-    onClose();
+    setSaving(true);
+    try {
+      const payload = itemToBook({
+        title: form.title, author: form.author, genre: form.genre,
+        year: parseInt(form.year), isbn: form.isbn || undefined,
+        totalCopies: parseInt(form.copies), available: true, rating: 4.0,
+        coverUrl: form.coverUrl, description: form.description,
+      });
+      const frappeBook = await createBook(payload);
+      onAdd(bookToItem(frappeBook));
+      onClose();
+    } catch (err) {
+      console.error("Failed to create book:", err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -116,8 +126,8 @@ function AddBookModal({ onClose, onAdd }: { onClose: () => void; onAdd: (b: Book
           </div>
         </div>
         <div className="flex gap-3 px-8 pb-7">
-          <button onClick={submit} className="flex-1 py-3 rounded-xl text-sm transition-all hover:opacity-90" style={{ background: "var(--primary)", color: "#fff", fontFamily: "'Inter', sans-serif", fontWeight: 600, border: "none", cursor: "pointer" }}>
-            Add to Collection
+          <button onClick={submit} disabled={saving} className="flex-1 py-3 rounded-xl text-sm transition-all hover:opacity-90 disabled:opacity-50" style={{ background: "var(--primary)", color: "#fff", fontFamily: "'Inter', sans-serif", fontWeight: 600, border: "none", cursor: "pointer" }}>
+            {saving ? "Saving..." : "Add to Collection"}
           </button>
           <button onClick={onClose} className="px-6 py-3 rounded-xl text-sm" style={{ background: "var(--secondary)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif", border: "1px solid var(--border)", cursor: "pointer" }}>
             Cancel
@@ -205,7 +215,7 @@ function AddMemberModal({ onClose, onAdd }: { onClose: () => void; onAdd: (m: Me
 }
 
 /* ─── Book Card (Librarian) ───────────────────────────────────────────────── */
-function BookCard({ book, onDelete }: { book: BookItem; onDelete: (id: number) => void }) {
+function BookCard({ book, onDelete }: { book: BookItem; onDelete: (id: string) => void }) {
   const avail = book.totalCopies - book.borrowedCopies;
   return (
     <div className="group rounded-2xl border overflow-hidden hover:shadow-lg transition-all duration-300" style={{ background: "#fff", borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
@@ -243,16 +253,17 @@ function BookCard({ book, onDelete }: { book: BookItem; onDelete: (id: number) =
 
 /* ─── LibrarianApp ───────────────────────────────────────────────────────── */
 export function LibrarianApp({
-  onSwitchRole, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn,
+  onSwitchRole, books, onBooksChange, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn,
 }: {
   onSwitchRole: () => void;
+  books: BookItem[];
+  onBooksChange: (books: BookItem[]) => void;
   borrowRequests: BorrowRequest[];
   onUpdateBorrowRequest: (id: number, status: "approved" | "rejected") => void;
   returnRequests: ReturnRequest[];
   onConfirmReturn: (id: number) => void;
 }) {
   const [tab, setTab] = useState<Tab>("dashboard");
-  const [books, setBooks] = useState<BookItem[]>(BOOKS);
   const [members, setMembers] = useState<Member[]>(MEMBERS);
   const [search, setSearch] = useState("");
   const [genreFilter, setGenreFilter] = useState("All");
@@ -382,6 +393,7 @@ export function LibrarianApp({
                   <Plus size={15} /> Add Book
                 </button>
               )}
+              {showAddBook && <AddBookModal onClose={() => setShowAddBook(false)} onAdd={b => onBooksChange([b, ...books])} />}
               {tab === "members" && (
                 <button onClick={() => setShowAddMember(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm hover:opacity-90 transition-all" style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
                   <Plus size={15} /> Add Member
@@ -525,7 +537,16 @@ export function LibrarianApp({
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
-                {filteredBooks.map(b => <BookCard key={b.id} book={b} onDelete={id => setBooks(prev => prev.filter(x => x.id !== id))} />)}
+                {filteredBooks.map(b => (
+                  <BookCard key={b.id} book={b} onDelete={async id => {
+                    try {
+                      await deleteBook(b.isbn);
+                      onBooksChange(books.filter(x => x.id !== id));
+                    } catch (err) {
+                      console.error("Failed to delete book:", err);
+                    }
+                  }} />
+                ))}
               </div>
               {filteredBooks.length === 0 && (
                 <div className="text-center py-20" style={{ color: "var(--muted-foreground)", fontFamily: "'Playfair Display', serif", fontSize: "1.1rem", fontStyle: "italic" }}>No volumes found.</div>
@@ -811,7 +832,6 @@ export function LibrarianApp({
         </main>
       </div>
 
-      {showAddBook && <AddBookModal onClose={() => setShowAddBook(false)} onAdd={b => setBooks(prev => [...prev, b])} />}
       {showAddMember && <AddMemberModal onClose={() => setShowAddMember(false)} onAdd={m => setMembers(prev => [...prev, m])} />}
     </div>
   );

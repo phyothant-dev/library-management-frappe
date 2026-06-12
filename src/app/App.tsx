@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BookMarked, Shield, BookOpen, Users, BarChart3, Star, ArrowRight } from "lucide-react";
 import { LibrarianApp } from "./components/LibrarianApp";
 import { MemberApp } from "./components/MemberApp";
-import { BorrowRequest, ReturnRequest } from "./components/data";
+import { BorrowRequest, ReturnRequest, BookItem } from "./components/data";
+import { getBooks, bookToItem } from "../service/api";
 
 type Role = null | "librarian" | "member";
 
@@ -116,8 +117,17 @@ function LoginScreen({ onSelect }: { onSelect: (role: "librarian" | "member") =>
 export default function App() {
   {/* MARKER-MAKE-KIT-INVOKED */}
   const [role, setRole] = useState<Role>(null);
+  const [books, setBooks] = useState<BookItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [borrowRequests, setBorrowRequests] = useState<BorrowRequest[]>([]);
   const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
+
+  useEffect(() => {
+    getBooks()
+      .then(data => setBooks(data.map(bookToItem)))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   const addBorrowRequest = (req: BorrowRequest) =>
     setBorrowRequests(prev => [req, ...prev]);
@@ -138,10 +148,18 @@ export default function App() {
       prev.map(r => r.id === id ? { ...r, status: "confirmed" as const } : r)
     );
 
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
+      <p style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.2rem", color: "var(--muted-foreground)" }}>Connecting to Arcanum...</p>
+    </div>
+  );
+
   if (role === null) return <LoginScreen onSelect={setRole} />;
   if (role === "librarian") return (
     <LibrarianApp
       onSwitchRole={() => setRole(null)}
+      books={books}
+      onBooksChange={setBooks}
       borrowRequests={borrowRequests}
       onUpdateBorrowRequest={updateBorrowRequest}
       returnRequests={returnRequests}
@@ -151,6 +169,7 @@ export default function App() {
   if (role === "member") return (
     <MemberApp
       onSwitchRole={() => setRole(null)}
+      books={books}
       borrowRequests={borrowRequests}
       onAddRequest={addBorrowRequest}
       returnRequests={returnRequests}
