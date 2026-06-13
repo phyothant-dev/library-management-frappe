@@ -1,8 +1,8 @@
 {
-  "name": "Library Member",
+  "name": "Fine",
   "owner": "phyot9964@gmail.com",
-  "creation": "2026-06-11 15:53:42.600817",
-  "modified": "2026-06-11 21:56:40.952442",
+  "creation": "2026-06-13 12:00:00.000000",
+  "modified": "2026-06-13 12:00:00.000000",
   "modified_by": "phyot9964@gmail.com",
   "docstatus": 0,
   "idx": 0,
@@ -10,7 +10,7 @@
   "in_create": 0,
   "protect_attached_files": 0,
   "naming_rule": "Expression",
-  "autoname": "ARC-.#####",
+  "autoname": "FINE-.#####",
   "allow_rename": 1,
   "module": "Library Management",
   "is_submittable": 0,
@@ -54,42 +54,41 @@
   "doctype": "DocType",
   "fields": [
     {
-      "fieldname": "section_break_6myd",
+      "fieldname": "section_break_basic",
       "fieldtype": "Section Break",
       "idx": 1
     },
     {
-      "label": "Full Name",
-      "fieldtype": "Data",
-      "fieldname": "full_name",
+      "label": "Member",
+      "fieldtype": "Link",
+      "fieldname": "member",
       "idx": 2,
       "reqd": 1,
+      "options": "Library Member",
       "in_list_view": 1
     },
     {
-      "label": "Email",
-      "fieldtype": "Data",
-      "fieldname": "email",
+      "label": "Loan",
+      "fieldtype": "Link",
+      "fieldname": "loan",
       "idx": 3,
-      "reqd": 1,
-      "options": "Email",
-      "unique": 1
+      "options": "Library Loan"
     },
     {
-      "label": "Phone",
-      "fieldtype": "Data",
-      "fieldname": "phone",
+      "label": "Amount",
+      "fieldtype": "Currency",
+      "fieldname": "amount",
       "idx": 4,
-      "options": "Phone"
+      "reqd": 1
     },
     {
-      "label": "Tier",
+      "label": "Reason",
       "fieldtype": "Select",
-      "fieldname": "tier",
+      "fieldname": "reason",
       "idx": 5,
       "reqd": 1,
-      "options": "Bronze\nSilver\nGold",
-      "in_list_view": 1
+      "options": "Overdue Return\nLost Book\nDamaged Book\nOther",
+      "default": "Overdue Return"
     },
     {
       "label": "Status",
@@ -97,59 +96,23 @@
       "fieldname": "status",
       "idx": 6,
       "reqd": 1,
-      "options": "Active\nOverdue\nSuspended",
-      "default": "Active",
+      "options": "Unpaid\nPaid",
+      "default": "Unpaid",
       "in_list_view": 1
     },
     {
-      "label": "Avatar",
-      "fieldtype": "Attach Image",
-      "fieldname": "avatar",
-      "idx": 7
-    },
-    {
-      "label": "Member Since",
+      "label": "Fine Date",
       "fieldtype": "Date",
-      "fieldname": "member_since",
-      "idx": 8,
+      "fieldname": "fine_date",
+      "idx": 7,
       "reqd": 1,
       "default": "Today"
     },
     {
-      "label": "Expiry Date",
+      "label": "Paid Date",
       "fieldtype": "Date",
-      "fieldname": "expiry_date",
-      "idx": 9,
-      "reqd": 1
-    },
-    {
-      "label": "User",
-      "fieldtype": "Link",
-      "fieldname": "user",
-      "idx": 10,
-      "options": "User"
-    },
-    {
-      "label": "Active Loans",
-      "fieldtype": "Int",
-      "fieldname": "active_loans",
-      "idx": 11,
-      "default": "0",
-      "read_only": 1
-    },
-    {
-      "label": "Total Borrowed",
-      "fieldtype": "Int",
-      "fieldname": "total_borrowed",
-      "idx": 12,
-      "default": "0",
-      "read_only": 1
-    },
-    {
-      "label": "Saved Books",
-      "fieldtype": "JSON",
-      "fieldname": "saved_books",
-      "idx": 13
+      "fieldname": "paid_date",
+      "idx": 8
     }
   ],
   "permissions": [

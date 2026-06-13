@@ -9,7 +9,7 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import { LOANS, MONTHLY_DATA, GENRE_DATA, BookItem, Member, BorrowRequest, ReturnRequest } from "./data";
+import { MONTHLY_DATA, GENRE_DATA, BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord } from "./data";
 import { createBook, deleteBook, bookToItem, itemToBook } from "../../service/api";
 
 type Tab = "dashboard" | "catalog" | "members" | "loans" | "requests";
@@ -259,7 +259,7 @@ function BookCard({ book, onDelete }: { book: BookItem; onDelete: (id: string) =
 
 /* ─── LibrarianApp ───────────────────────────────────────────────────────── */
 export function LibrarianApp({
-  onSwitchRole, books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn,
+  onSwitchRole, books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans,
 }: {
   onSwitchRole: () => void;
   books: BookItem[];
@@ -270,6 +270,7 @@ export function LibrarianApp({
   onUpdateBorrowRequest: (id: number, status: "approved" | "rejected") => void;
   returnRequests: ReturnRequest[];
   onConfirmReturn: (id: number) => void;
+  loans: LoanRecord[];
 }) {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [search, setSearch] = useState("");
@@ -303,8 +304,8 @@ export function LibrarianApp({
   const stats = [
     { label: "Total Books", value: books.reduce((a, b) => a + b.totalCopies, 0).toLocaleString(), sub: "in collection", icon: BookOpen, green: true },
     { label: "Active Members", value: members.filter(m => m.status === "active").length.toString(), sub: "of " + members.length + " total", icon: Users },
-    { label: "On Loan", value: LOANS.filter(l => l.status !== "returned").length.toString(), sub: "currently borrowed", icon: BookMarked },
-    { label: "Overdue", value: LOANS.filter(l => l.status === "overdue").length.toString(), sub: "past due", icon: AlertTriangle },
+    { label: "On Loan", value: loans.filter(l => l.status !== "returned").length.toString(), sub: "currently borrowed", icon: BookMarked },
+    { label: "Overdue", value: loans.filter(l => l.status === "overdue").length.toString(), sub: "past due", icon: AlertTriangle },
   ];
 
   return (
@@ -505,7 +506,7 @@ export function LibrarianApp({
                 <div className="rounded-2xl border p-6 bg-white" style={{ borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
                   <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "var(--foreground)", marginBottom: "1rem" }}>Recent Loans</h2>
                   <div className="space-y-3">
-                    {LOANS.slice(0, 5).map(l => {
+                    {loans.slice(0, 5).map(l => {
                       const s = STATUS_BADGE[l.status];
                       return (
                         <div key={l.id} className="flex items-center justify-between py-2 border-b" style={{ borderColor: "var(--border)" }}>
@@ -798,9 +799,14 @@ export function LibrarianApp({
             <div className="space-y-5">
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { label: "On Loan", value: LOANS.filter(l => l.status !== "returned").length, color: "var(--primary)", bg: "rgba(44,95,74,0.07)" },
-                  { label: "Due This Week", value: 8, color: "#c9973a", bg: "rgba(201,151,58,0.07)" },
-                  { label: "Overdue", value: LOANS.filter(l => l.status === "overdue").length, color: "#dc2626", bg: "rgba(220,38,38,0.07)" },
+                  { label: "On Loan", value: loans.filter(l => l.status !== "returned").length, color: "var(--primary)", bg: "rgba(44,95,74,0.07)" },
+                  { label: "Due This Week", value: loans.filter(l => {
+                    const due = new Date(l.due);
+                    const now = new Date();
+                    const week = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                    return l.status !== "returned" && due >= now && due <= week;
+                  }).length, color: "#c9973a", bg: "rgba(201,151,58,0.07)" },
+                  { label: "Overdue", value: loans.filter(l => l.status === "overdue").length, color: "#dc2626", bg: "rgba(220,38,38,0.07)" },
                 ].map(s => (
                   <div key={s.label} className="rounded-2xl border p-5 bg-white" style={{ borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
                     <p className="text-xs uppercase tracking-widest mb-2" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{s.label}</p>
@@ -819,7 +825,7 @@ export function LibrarianApp({
                     ))}
                   </tr></thead>
                   <tbody>
-                    {LOANS.map(l => {
+                    {loans.map(l => {
                       const s = STATUS_BADGE[l.status];
                       return (
                         <tr key={l.id} className="border-b hover:bg-secondary/40 transition-colors" style={{ borderColor: "var(--border)" }}>

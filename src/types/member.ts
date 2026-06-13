@@ -16,6 +16,7 @@ export interface FrappeMember {
   user?: string;
   active_loans: number;
   total_borrowed: number;
+  saved_books?: string[];
   creation: string;
   modified: string;
 }
@@ -33,4 +34,5 @@ export interface LibraryMember {
   activeLoans: number;
   totalBorrowed: number;
   memberId: string;
+  savedBooks?: string[];
 }

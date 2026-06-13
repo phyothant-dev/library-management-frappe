@@ -4,7 +4,7 @@ import {
   BookMarked, X, CheckCircle2, AlertTriangle,
   Calendar, Award, ArrowRight, RefreshCw, Heart, Bookmark, Send, RotateCcw,
 } from "lucide-react";
-import { LOANS, BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord } from "./data";
+import { BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord, FineRecord } from "./data";
 
 type MemberTab = "browse" | "saved" | "myloans" | "membership";
 
@@ -324,14 +324,14 @@ function BrowseBookCard({
 
 /* ─── Saved Books Page ────────────────────────────────────────────────────── */
 function SavedBooksPage({
-  savedIds, books, onToggleSave, onDetail, onBorrow,
+  savedBooks, books, onToggleSave, onDetail, onBorrow,
 }: {
-  savedIds: Set<string>; books: BookItem[];
+  savedBooks: string[]; books: BookItem[];
   onToggleSave: (id: string) => void;
   onDetail: (b: BookItem) => void;
   onBorrow: (b: BookItem) => void;
 }) {
-  const saved = books.filter(b => savedIds.has(b.id));
+  const saved = books.filter(b => savedBooks.includes(b.id));
   const availableSaved = saved.filter(b => b.totalCopies - b.borrowedCopies > 0);
   const unavailableSaved = saved.filter(b => b.totalCopies - b.borrowedCopies === 0);
 
@@ -439,7 +439,7 @@ const REQUEST_STATUS_STYLE: Record<string, { bg: string; color: string; label: s
 
 /* ─── MemberApp ───────────────────────────────────────────────────────────── */
 export function MemberApp({
-  onSwitchRole, books, members, currentMemberId, onLogin, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest,
+  onSwitchRole, books, members, currentMemberId, onLogin, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest, loans, fines, onToggleSavedBook,
 }: {
   onSwitchRole: () => void;
   books: BookItem[];
@@ -450,6 +450,9 @@ export function MemberApp({
   onAddRequest: (req: BorrowRequest) => void;
   returnRequests: ReturnRequest[];
   onAddReturnRequest: (req: ReturnRequest) => void;
+  loans: LoanRecord[];
+  fines: FineRecord[];
+  onToggleSavedBook: (memberId: number, bookIsbn: string) => void;
 }) {
   if (currentMemberId === null) {
     return <LoginScreen members={members} onLogin={onLogin} />;
@@ -463,18 +466,13 @@ export function MemberApp({
   const [requestedBook, setRequestedBook] = useState<BookItem | null>(null);
   const [returnStep, setReturnStep] = useState<"confirm" | "sent" | null>(null);
   const [returningLoan, setReturningLoan] = useState<LoanRecord | null>(null);
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set(["2", "4", "9"]));
 
   const tier = TIER_CONFIG[member.tier];
-  const myLoans = LOANS.filter(l => l.memberId === member.id);
+  const myLoans = loans.filter(l => l.memberId === member.id || l.memberFrappeName === member.memberId);
   const myRequests = borrowRequests.filter(r => r.memberId === member.id);
 
-  const toggleSave = (id: string) => {
-    setSavedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  const toggleSave = (bookIsbn: string) => {
+    onToggleSavedBook(member.id, bookIsbn);
   };
 
   const myReturnRequests = returnRequests.filter(r => r.memberId === member.id);
@@ -484,8 +482,11 @@ export function MemberApp({
     onAddReturnRequest({
       id: Date.now(),
       loanId: loan.id,
+      loanFrappeName: (loan as any).frappeName,
       bookId: loan.bookId,
+      bookIsbn: book?.isbn,
       memberId: member.id,
+      memberFrappeName: member.memberId,
       bookTitle: loan.bookTitle,
       bookCover: book?.coverUrl ?? "",
       bookAuthor: book?.author ?? "",
@@ -493,7 +494,7 @@ export function MemberApp({
       memberAvatar: member.avatarUrl,
       borrowedDate: loan.borrowed,
       dueDate: loan.due,
-      returnRequestedDate: "Jun 10, 2026",
+      returnRequestedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
       status: "pending",
     });
     setReturnStep("sent");
@@ -503,13 +504,15 @@ export function MemberApp({
     onAddRequest({
       id: Date.now(),
       bookId: book.id,
+      bookIsbn: book.isbn,
       memberId: member.id,
+      memberFrappeName: member.memberId,
       bookTitle: book.title,
       bookCover: book.coverUrl,
       bookAuthor: book.author,
       memberName: member.name,
       memberAvatar: member.avatarUrl,
-      requestedDate: "Jun 10, 2026",
+      requestedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
       status: "pending",
     });
     setRequestedBook(book);
@@ -525,7 +528,7 @@ export function MemberApp({
 
   const navItems: { id: MemberTab; label: string; icon: React.ElementType; count?: number }[] = [
     { id: "browse", label: "Browse Catalog", icon: BookOpen },
-    { id: "saved", label: "Saved Books", icon: Heart, count: savedIds.size },
+        { id: "saved", label: "Saved Books", icon: Heart, count: (member.savedBooks || []).length },
     { id: "myloans", label: "My Loans", icon: Clock, count: pendingCount || undefined },
     { id: "membership", label: "Membership", icon: CreditCard },
   ];
@@ -603,7 +606,7 @@ export function MemberApp({
             </h1>
             <p className="text-xs mt-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>
               {tab === "browse" && `${books.filter(b => b.available).length} books available to borrow`}
-              {tab === "saved" && (savedIds.size > 0 ? `${savedIds.size} books saved · tap the heart to remove` : "No books saved yet")}
+              {tab === "saved" && ((member.savedBooks || []).length > 0 ? `${(member.savedBooks || []).length} books saved · tap the heart to remove` : "No books saved yet")}
               {tab === "myloans" && `${myLoans.filter(l => l.status !== "returned").length} active · ${myRequests.filter(r => r.status === "pending").length} pending approval`}
               {tab === "membership" && `${member.memberId} · ${member.tier} Tier`}
             </p>
@@ -636,7 +639,7 @@ export function MemberApp({
                 {filteredBooks.map(book => (
                   <BrowseBookCard
                     key={book.id} book={book}
-                    isSaved={savedIds.has(book.id)}
+                    isSaved={(member.savedBooks || []).includes(book.id)}
                     onToggleSave={toggleSave}
                     onDetail={setDetailBook}
                     onBorrow={handleBorrowRequest}
@@ -652,7 +655,7 @@ export function MemberApp({
           {/* ── SAVED ── */}
           {tab === "saved" && (
             <SavedBooksPage
-              savedIds={savedIds} books={books}
+              savedBooks={member.savedBooks || []} books={books}
               onToggleSave={toggleSave}
               onDetail={setDetailBook}
               onBorrow={handleBorrowRequest}
@@ -883,7 +886,7 @@ export function MemberApp({
                     {[
                       { label: "Total Borrowed", value: member.totalBorrowed },
                       { label: "Active Loans", value: member.activeLoans },
-                      { label: "Saved Books", value: savedIds.size },
+                      { label: "Saved Books", value: (member.savedBooks || []).length },
                     ].map(s => (
                       <div key={s.label}>
                         <p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: tier.color, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</p>
@@ -960,6 +963,35 @@ export function MemberApp({
                   ))}
                 </div>
               </div>
+
+              {fines.filter(f => f.member === member.memberId).length > 0 && (
+                <div className="rounded-2xl border bg-white p-6" style={{ borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                  <h3 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.1rem", color: "var(--foreground)", marginBottom: "1rem" }}>
+                    Fines & Fees
+                    <span className="ml-2 text-xs px-2 py-0.5 rounded-full align-middle" style={{ fontFamily: "'DM Mono', monospace", background: "rgba(220,38,38,0.08)", color: "#dc2626" }}>
+                      {fines.filter(f => f.member === member.memberId && f.status === "Unpaid").length} unpaid
+                    </span>
+                  </h3>
+                  <div className="space-y-3">
+                    {fines.filter(f => f.member === member.memberId).map(f => (
+                      <div key={f.id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: f.status === "Unpaid" ? "rgba(220,38,38,0.04)" : "rgba(220,252,231,0.4)" }}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: f.status === "Unpaid" ? "rgba(220,38,38,0.1)" : "rgba(22,163,74,0.1)" }}>
+                            {f.status === "Unpaid" ? <AlertTriangle size={14} color="#dc2626" /> : <CheckCircle2 size={14} color="#16a34a" />}
+                          </div>
+                          <div>
+                            <p className="text-sm" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, color: "var(--foreground)" }}>{f.reason}</p>
+                            <p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{f.fineDate}{f.paidDate ? ` · Paid ${f.paidDate}` : ""}</p>
+                          </div>
+                        </div>
+                        <span className="text-sm font-bold" style={{ fontFamily: "'DM Mono', monospace", color: f.status === "Unpaid" ? "#dc2626" : "#16a34a" }}>
+                          ${f.amount.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>
@@ -968,7 +1000,7 @@ export function MemberApp({
       {detailBook && (
         <BookDetailModal
           book={detailBook}
-          isSaved={savedIds.has(detailBook.id)}
+          isSaved={(member.savedBooks || []).includes(detailBook.id)}
           onToggleSave={toggleSave}
           onClose={() => setDetailBook(null)}
           onBorrow={b => { handleBorrowRequest(b); setDetailBook(null); }}

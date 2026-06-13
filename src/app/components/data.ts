@@ -1,7 +1,10 @@
 export interface BorrowRequest {
   id: number;
+  frappeName?: string;
   bookId: string;
+  bookIsbn?: string;
   memberId: number;
+  memberFrappeName?: string;
   bookTitle: string;
   bookCover: string;
   bookAuthor: string;
@@ -14,9 +17,13 @@ export interface BorrowRequest {
 
 export interface ReturnRequest {
   id: number;
+  frappeName?: string;
   loanId: number;
+  loanFrappeName?: string;
   bookId: string;
+  bookIsbn?: string;
   memberId: number;
+  memberFrappeName?: string;
   bookTitle: string;
   bookCover: string;
   bookAuthor: string;
@@ -43,6 +50,19 @@ export interface BookItem {
   description: string;
 }
 
+export interface FineRecord {
+  id: number;
+  frappeName?: string;
+  member: string;
+  loan?: string;
+  amount: number;
+  reason: "Overdue Return" | "Lost Book" | "Damaged Book" | "Other";
+  status: "Unpaid" | "Paid";
+  fineDate: string;
+  paidDate?: string;
+  memberName?: string;
+}
+
 export interface Member {
   id: number;
   name: string;
@@ -53,15 +73,20 @@ export interface Member {
   totalBorrowed: number;
   status: "active" | "overdue" | "suspended";
   avatarUrl: string;
-  tier: "Bronze" | "Silver" | "Gold";
+  tier: "Gold" | "Silver" | "Bronze";
   memberId: string;
+  memberFrappeName?: string;
   expiryDate: string;
+  savedBooks?: string[];
 }
 
 export interface LoanRecord {
   id: number;
+  frappeName?: string;
   bookId: string;
+  bookIsbn?: string;
   memberId: number;
+  memberFrappeName?: string;
   bookTitle: string;
   memberName: string;
   borrowed: string;

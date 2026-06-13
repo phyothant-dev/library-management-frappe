@@ -48,6 +48,7 @@ export interface FrappeMemberRaw {
   user?: string;
   active_loans: number;
   total_borrowed: number;
+  saved_books?: string[];
   creation: string;
   modified: string;
 }
@@ -105,6 +106,7 @@ export function memberToItem(m: FrappeMemberRaw): LibraryMember {
     activeLoans: m.active_loans,
     totalBorrowed: m.total_borrowed,
     memberId: m.name,
+    savedBooks: Array.isArray(m.saved_books) ? m.saved_books : [],
   };
 }
 
@@ -122,10 +124,11 @@ export function itemToMember(item: Partial<LibraryMember>) {
     expiry_date: item.expiryDate ? toMySQLDate(item.expiryDate) : "",
     active_loans: item.activeLoans || 0,
     total_borrowed: item.totalBorrowed || 0,
+    saved_books: item.savedBooks || [],
   };
 }
 
-function hashId(s: string): number {
+export function hashId(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) {
     h = (h << 5) - h + s.charCodeAt(i);
@@ -151,6 +154,7 @@ export function frappeMemberToMember(m: FrappeMemberRaw): Member {
     tier: m.tier,
     memberId: m.name,
     expiryDate: m.expiry_date ? toDisplayDate(m.expiry_date) : "Unknown",
+    savedBooks: Array.isArray(m.saved_books) ? m.saved_books : [],
   };
 }
 
@@ -166,5 +170,6 @@ export function memberToFrappePayload(member: Member) {
     expiry_date: toMySQLDate(member.expiryDate),
     active_loans: member.activeLoans || 0,
     total_borrowed: member.totalBorrowed || 0,
+    saved_books: member.savedBooks || [],
   };
 }
