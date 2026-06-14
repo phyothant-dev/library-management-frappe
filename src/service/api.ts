@@ -1,13 +1,15 @@
 import axios from "axios";
 
-const BASE_URL = "https://phyothant.j.frappe.cloud";
+const BASE_URL = import.meta.env.VITE_FRAPPE_BASE_URL;
+const API_KEY = import.meta.env.VITE_FRAPPE_API_KEY;
+const API_SECRET = import.meta.env.VITE_FRAPPE_API_SECRET;
 
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
     "Accept": "application/json",
     "Content-Type": "application/json",
-    "Authorization": "token 74665ad15a4aea0:12c4b2f10b7b837",
+    "Authorization": `token ${API_KEY}:${API_SECRET}`,
   },
 });
 

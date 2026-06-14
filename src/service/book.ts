@@ -2,8 +2,10 @@
 import axios from "axios";
 import type { LibraryBook, Genre } from "../types/book";
 
+const BASE_URL = import.meta.env.VITE_FRAPPE_BASE_URL;
+
 const frappe = axios.create({
-  baseURL: "https://phyothant.j.frappe.cloud",
+  baseURL: BASE_URL,
   withCredentials: true,
 });
 

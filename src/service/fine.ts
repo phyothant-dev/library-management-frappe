@@ -1,15 +1,37 @@
 import axios from "axios";
 
-const BASE_URL = "https://phyothant.j.frappe.cloud";
+const BASE_URL = import.meta.env.VITE_FRAPPE_BASE_URL;
 
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
     "Accept": "application/json",
     "Content-Type": "application/json",
-    "Authorization": "token 74665ad15a4aea0:12c4b2f10b7b837",
+    "Authorization": `token ${import.meta.env.VITE_FRAPPE_API_KEY}:${import.meta.env.VITE_FRAPPE_API_SECRET}`,
   },
 });
+
+const DAILY_RATES: Record<string, number> = {
+  Bronze: 0.50,
+  Silver: 0.25,
+  Gold: 0,
+};
+
+export function calculateFineAmount(
+  memberTier: string,
+  dueDate: string,
+  returnDate: string,
+): number {
+  const rate = DAILY_RATES[memberTier] ?? 0.50;
+  if (rate === 0) return 0;
+  const due = new Date(dueDate);
+  const returned = new Date(returnDate);
+  const overdueDays = Math.ceil(
+    (returned.getTime() - due.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (overdueDays <= 0) return 0;
+  return Math.round(overdueDays * rate * 100) / 100;
+}
 
 export interface FrappeFine {
   name: string;

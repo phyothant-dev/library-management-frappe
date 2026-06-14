@@ -1,56 +1,13 @@
 import React, { useState } from "react";
+import { toast } from "sonner";
 import {
   BookOpen, Clock, CreditCard, ChevronRight, Search, Star,
   BookMarked, X, CheckCircle2, AlertTriangle,
   Calendar, Award, ArrowRight, RefreshCw, Heart, Bookmark, Send, RotateCcw,
 } from "lucide-react";
-import { BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord, FineRecord } from "./data";
+import { BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord, FineRecord, Reservation } from "./data";
 
 type MemberTab = "browse" | "saved" | "myloans" | "membership";
-
-function LoginScreen({ members, onLogin }: { members: Member[]; onLogin: (id: number) => void }) {
-  return (
-    <div className="min-h-screen flex items-center justify-center p-8" style={{ background: "var(--background)" }}>
-      <div className="w-full max-w-lg">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: "var(--primary)" }}>
-            <BookMarked size={20} color="#fff" />
-          </div>
-          <div>
-            <p style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.3rem", color: "var(--foreground)" }}>Arcanum</p>
-            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "var(--muted-foreground)", letterSpacing: "0.12em", textTransform: "uppercase" }}>Member Login</p>
-          </div>
-        </div>
-        <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.5rem", color: "var(--foreground)" }}>Select your account</h2>
-        <p className="mt-1 mb-6 text-sm" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>
-          Choose your member profile to access the library portal.
-        </p>
-        <div className="space-y-3">
-          {members.map(m => {
-            const status = m.status === "active" ? "#15803d" : m.status === "suspended" ? "#dc2626" : "#92400e";
-            return (
-              <button key={m.id} onClick={() => onLogin(m.id)}
-                className="w-full text-left p-4 rounded-2xl border-2 transition-all hover:shadow-md bg-white"
-                style={{ borderColor: "var(--border)", cursor: "pointer" }}>
-                <div className="flex items-center gap-4">
-                  <img src={m.avatarUrl} alt={m.name} className="w-12 h-12 rounded-full object-cover" />
-                  <div className="flex-1 min-w-0">
-                    <p style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, color: "var(--foreground)" }}>{m.name}</p>
-                    <p className="text-xs mt-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{m.memberId} · {m.tier}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ background: status }} />
-                    <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{m.status}</span>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const TIER_CONFIG = {
   Bronze: {
@@ -71,10 +28,11 @@ const GENRES = ["All", "Historical", "Literary", "Gothic", "Mystery", "Modernist
 
 /* ─── Book Detail Modal ───────────────────────────────────────────────────── */
 function BookDetailModal({
-  book, onClose, onBorrow, isSaved, onToggleSave,
+  book, onClose, onBorrow, isSaved, onToggleSave, onReserve, isReserved, canReserve,
 }: {
   book: BookItem; onClose: () => void; onBorrow: (b: BookItem) => void;
   isSaved: boolean; onToggleSave: (id: string) => void;
+  onReserve?: () => void; isReserved?: boolean; canReserve?: boolean;
 }) {
   const avail = book.totalCopies - book.borrowedCopies;
   return (
@@ -121,13 +79,27 @@ function BookDetailModal({
                 </div>
               ))}
             </div>
-            <button
-              onClick={() => { if (avail > 0) { onBorrow(book); onClose(); } }}
-              disabled={avail === 0}
-              className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90"
-              style={{ background: avail > 0 ? "var(--primary)" : "var(--muted)", color: avail > 0 ? "#fff" : "var(--muted-foreground)", border: "none", cursor: avail > 0 ? "pointer" : "not-allowed", fontFamily: "'Inter', sans-serif" }}>
-              {avail > 0 ? "Borrow This Book" : "Currently Unavailable"}
-            </button>
+            {avail > 0 ? (
+              <button
+                onClick={() => { onBorrow(book); onClose(); }}
+                className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90"
+                style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
+                Borrow This Book
+              </button>
+            ) : canReserve ? (
+              <button
+                onClick={() => { onReserve?.(); onClose(); }}
+                disabled={isReserved}
+                className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90 flex items-center justify-center gap-2"
+                style={{ background: isReserved ? "var(--muted)" : "#d97706", color: "#fff", border: "none", cursor: isReserved ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif" }}>
+                <BookMarked size={14} />
+                {isReserved ? "Already Reserved" : "Reserve This Book"}
+              </button>
+            ) : (
+              <button disabled className="w-full py-3 rounded-xl text-sm font-semibold" style={{ background: "var(--muted)", color: "var(--muted-foreground)", border: "none", cursor: "not-allowed", fontFamily: "'Inter', sans-serif" }}>
+                Currently Unavailable
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -264,12 +236,13 @@ function ReturnSentModal({ loan, onClose }: { loan: LoanRecord; onClose: () => v
 
 /* ─── Book Card (shared) ──────────────────────────────────────────────────── */
 function BrowseBookCard({
-  book, isSaved, onToggleSave, onDetail, onBorrow,
+  book, isSaved, onToggleSave, onDetail, onBorrow, onReserve, isReserved, canReserve,
 }: {
   book: BookItem; isSaved: boolean;
   onToggleSave: (id: string) => void;
   onDetail: (b: BookItem) => void;
   onBorrow: (b: BookItem) => void;
+  onReserve?: () => void; isReserved?: boolean; canReserve?: boolean;
 }) {
   const avail = book.totalCopies - book.borrowedCopies;
   return (
@@ -310,12 +283,25 @@ function BrowseBookCard({
             ))}
             <span className="ml-1 text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{book.rating}</span>
           </div>
-          <button
-            onClick={e => { e.stopPropagation(); if (avail > 0) onBorrow(book); }}
-            className="text-xs px-3 py-1.5 rounded-lg transition-all"
-            style={{ background: avail > 0 ? "var(--primary)" : "var(--secondary)", color: avail > 0 ? "#fff" : "var(--muted-foreground)", border: "none", cursor: avail > 0 ? "pointer" : "default", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
-            {avail > 0 ? "Borrow" : "Waitlist"}
-          </button>
+          {avail > 0 ? (
+            <button
+              onClick={e => { e.stopPropagation(); onBorrow(book); }}
+              className="text-xs px-3 py-1.5 rounded-lg transition-all"
+              style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+              Borrow
+            </button>
+          ) : canReserve ? (
+            <button
+              onClick={e => { e.stopPropagation(); onReserve?.(); }}
+              className="text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1"
+              style={{ background: isReserved ? "var(--muted)" : "#d97706", color: "#fff", border: "none", cursor: isReserved ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+              <BookMarked size={11} /> {isReserved ? "Reserved" : "Reserve"}
+            </button>
+          ) : (
+            <button disabled className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "var(--secondary)", color: "var(--muted-foreground)", border: "none", cursor: "default", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+              Unavail.
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -324,12 +310,13 @@ function BrowseBookCard({
 
 /* ─── Saved Books Page ────────────────────────────────────────────────────── */
 function SavedBooksPage({
-  savedBooks, books, onToggleSave, onDetail, onBorrow,
+  savedBooks, books, onToggleSave, onDetail, onBorrow, onBorrowAll,
 }: {
   savedBooks: string[]; books: BookItem[];
   onToggleSave: (id: string) => void;
   onDetail: (b: BookItem) => void;
   onBorrow: (b: BookItem) => void;
+  onBorrowAll?: () => void;
 }) {
   const saved = books.filter(b => savedBooks.includes(b.id));
   const availableSaved = saved.filter(b => b.totalCopies - b.borrowedCopies > 0);
@@ -420,6 +407,7 @@ function SavedBooksPage({
             </p>
           </div>
           <button
+            onClick={onBorrowAll}
             className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm hover:opacity-90 transition-all"
             style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}
           >
@@ -438,14 +426,19 @@ const REQUEST_STATUS_STYLE: Record<string, { bg: string; color: string; label: s
 };
 
 /* ─── MemberApp ───────────────────────────────────────────────────────────── */
+const MEMBER_STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
+  active: { bg: "#dcfce7", color: "#15803d", label: "Active" },
+  overdue: { bg: "#fee2e2", color: "#dc2626", label: "Overdue" },
+  suspended: { bg: "#f3f4f6", color: "#6b7280", label: "Suspended" },
+};
+
 export function MemberApp({
-  onSwitchRole, books, members, currentMemberId, onLogin, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest, loans, fines, onToggleSavedBook,
+  onSwitchRole, books, members, currentMemberId, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest, loans, fines, onToggleSavedBook, onRenewMembership, onRenewLoan, reservations, onAddReservation, onCancelReservation,
 }: {
   onSwitchRole: () => void;
   books: BookItem[];
   members: Member[];
   currentMemberId: number | null;
-  onLogin: (id: number) => void;
   borrowRequests: BorrowRequest[];
   onAddRequest: (req: BorrowRequest) => void;
   returnRequests: ReturnRequest[];
@@ -453,9 +446,16 @@ export function MemberApp({
   loans: LoanRecord[];
   fines: FineRecord[];
   onToggleSavedBook: (memberId: number, bookIsbn: string) => void;
+  onRenewMembership: (memberId: string) => void;
+  onRenewLoan: (loanFrappeName: string, memberTier: string) => void;
+  reservations: Reservation[];
+  onAddReservation: (bookId: string, memberId: string, priority: "Normal" | "Priority") => void;
+  onCancelReservation: (reservation: Reservation) => void;
 }) {
   if (currentMemberId === null) {
-    return <LoginScreen members={members} onLogin={onLogin} />;
+    return <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
+      <p style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.1rem", color: "var(--muted-foreground)", fontStyle: "italic" }}>Please sign in from the main login page.</p>
+    </div>;
   }
 
   const member = members.find(m => m.id === currentMemberId) ?? members[0];
@@ -469,6 +469,7 @@ export function MemberApp({
 
   const tier = TIER_CONFIG[member.tier];
   const myLoans = loans.filter(l => l.memberId === member.id || l.memberFrappeName === member.memberId);
+  const activeLoans = myLoans.filter(l => l.status !== "returned");
   const myRequests = borrowRequests.filter(r => r.memberId === member.id);
 
   const toggleSave = (bookIsbn: string) => {
@@ -501,6 +502,13 @@ export function MemberApp({
   };
 
   const handleBorrowRequest = (book: BookItem) => {
+    const limits = { Bronze: 3, Silver: 5, Gold: 8 } as const;
+    const maxBooks = limits[member.tier];
+    const activeCount = activeLoans.length + borrowRequests.filter(r => r.memberId === member.id && r.status === "pending").length;
+    if (activeCount >= maxBooks) {
+      toast.error(`You've reached your ${member.tier} limit of ${maxBooks} books`);
+      return;
+    }
     onAddRequest({
       id: Date.now(),
       bookId: book.id,
@@ -516,6 +524,29 @@ export function MemberApp({
       status: "pending",
     });
     setRequestedBook(book);
+  };
+
+  const handleBorrowAllSaved = () => {
+    const saved = books.filter(b => (member.savedBooks || []).includes(b.id));
+    const available = saved.filter(b => b.totalCopies - b.borrowedCopies > 0);
+    const limits = { Bronze: 3, Silver: 5, Gold: 8 } as const;
+    const maxBooks = limits[member.tier];
+    const activeCount = member.activeLoans || 0;
+    const slot = Math.max(0, maxBooks - activeCount);
+    const toBorrow = available.slice(0, slot);
+    if (toBorrow.length === 0) {
+      toast.error(activeCount >= maxBooks
+        ? `You've reached your ${member.tier} limit of ${maxBooks} books`
+        : "No available books to borrow"
+      );
+      return;
+    }
+    toBorrow.forEach(book => handleBorrowRequest(book));
+    if (toBorrow.length < available.length) {
+      toast(`${toBorrow.length} request${toBorrow.length > 1 ? "s" : ""} sent — your ${member.tier} limit is ${maxBooks} books`);
+    } else {
+      toast.success(`${toBorrow.length} request${toBorrow.length > 1 ? "s" : ""} sent`);
+    }
   };
 
   const filteredBooks = books.filter(b => {
@@ -643,6 +674,9 @@ export function MemberApp({
                     onToggleSave={toggleSave}
                     onDetail={setDetailBook}
                     onBorrow={handleBorrowRequest}
+                    onReserve={() => onAddReservation(book.isbn || book.id, member.memberId, member.tier === "Gold" ? "Priority" : "Normal")}
+                    isReserved={reservations.some(r => r.book === (book.isbn || book.id) && r.member === member.memberId && r.status === "Active")}
+                    canReserve={member.tier === "Silver" || member.tier === "Gold"}
                   />
                 ))}
               </div>
@@ -659,6 +693,7 @@ export function MemberApp({
               onToggleSave={toggleSave}
               onDetail={setDetailBook}
               onBorrow={handleBorrowRequest}
+              onBorrowAll={handleBorrowAllSaved}
             />
           )}
 
@@ -734,19 +769,55 @@ export function MemberApp({
                 </section>
               )}
 
+              {/* Reservations section */}
+              {reservations.filter(r => r.member === member.memberId && r.status === "Active").length > 0 && (
+                <section>
+                  <h2 className="mb-4" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.05rem", color: "var(--foreground)" }}>
+                    Reservations
+                  </h2>
+                  <div className="grid grid-cols-1 gap-3">
+                    {reservations.filter(r => r.member === member.memberId && r.status === "Active").map(res => {
+                      const book = books.find(b => b.isbn === res.book || b.id === res.book);
+                      return (
+                        <div key={res.id} className="rounded-2xl border bg-white overflow-hidden" style={{ borderColor: "rgba(217,119,6,0.25)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                          <div className="flex items-center gap-5 p-5">
+                            <img src={book?.coverUrl} alt={res.bookTitle || res.book} className="w-14 h-20 object-cover rounded-xl flex-shrink-0 shadow-sm" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-3">
+                                <h3 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1rem", color: "var(--foreground)", fontStyle: "italic" }}>{res.bookTitle || book?.title || res.book}</h3>
+                                <span className="text-xs px-2.5 py-1 rounded-full flex items-center gap-1" style={{ fontFamily: "'DM Mono', monospace", background: "rgba(217,119,6,0.1)", color: "#d97706" }}>
+                                  <Clock size={10} /> {res.priority === "Priority" ? "Priority" : "Waiting"}
+                                </span>
+                              </div>
+                              <p className="text-sm mt-0.5" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>Reserved on {res.reservedDate}</p>
+                            </div>
+                            <button
+                              onClick={() => onCancelReservation(res)}
+                              className="text-xs px-3 py-1.5 rounded-lg"
+                              style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626", border: "1.5px solid rgba(220,38,38,0.2)", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
               {/* Active loans section */}
               <section>
                 <h2 className="mb-4" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.05rem", color: "var(--foreground)" }}>
                   Active Loans
                 </h2>
-                {myLoans.length === 0 ? (
+                {activeLoans.length === 0 ? (
                   <div className="text-center py-16 rounded-2xl border bg-white" style={{ borderColor: "var(--border)" }}>
                     <BookOpen size={36} color="var(--muted-foreground)" className="mx-auto mb-3 opacity-30" />
                     <p style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: "var(--muted-foreground)" }}>No active loans.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
-                    {myLoans.map(loan => {
+                    {activeLoans.map(loan => {
                       const book = books.find(b => b.id === loan.bookId);
                       const isOverdue = loan.status === "overdue";
                       const returnReq = myReturnRequests.find(r => r.loanId === loan.id);
@@ -804,7 +875,15 @@ export function MemberApp({
                             </div>
 
                             {/* Return action area */}
-                            <div className="flex-shrink-0">
+                            <div className="flex-shrink-0 flex items-center gap-2">
+                              {!isReturnConfirmed && !isReturnPending && !isOverdue && (
+                                <button
+                                  onClick={() => onRenewLoan(loan.frappeName || "", member.tier)}
+                                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs transition-all hover:opacity-90"
+                                  style={{ background: "rgba(44,95,74,0.08)", color: "var(--primary)", border: "1.5px solid rgba(44,95,74,0.15)", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+                                  <RefreshCw size={12} /> Renew
+                                </button>
+                              )}
                               {isReturnConfirmed ? (
                                 <div className="p-3 rounded-xl" style={{ background: "rgba(22,163,74,0.08)" }}>
                                   <CheckCircle2 size={20} color="#16a34a" />
@@ -868,7 +947,12 @@ export function MemberApp({
                   <div className="absolute inset-0 flex items-center justify-between px-8">
                     <div>
                       <p className="text-xs uppercase tracking-widest mb-1" style={{ fontFamily: "'DM Mono', monospace", color: tier.color, opacity: 0.7 }}>Arcanum Public Library</p>
-                      <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.8rem", color: tier.color }}>{member.name}</h2>
+                      <div className="flex items-center gap-3">
+                        <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.8rem", color: tier.color }}>{member.name}</h2>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full" style={{ fontFamily: "'DM Mono', monospace", background: MEMBER_STATUS_STYLE[member.status]?.bg || "#f3f4f6", color: MEMBER_STATUS_STYLE[member.status]?.color || "#6b7280" }}>
+                          {MEMBER_STATUS_STYLE[member.status]?.label || member.status}
+                        </span>
+                      </div>
                       <p className="mt-1" style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.8rem", color: tier.color, opacity: 0.8 }}>{member.memberId}</p>
                     </div>
                     <div className="text-right">
@@ -881,20 +965,39 @@ export function MemberApp({
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between px-8 py-4" style={{ borderTop: `1px solid ${tier.border}40` }}>
-                  <div className="flex gap-6">
-                    {[
-                      { label: "Total Borrowed", value: member.totalBorrowed },
-                      { label: "Active Loans", value: member.activeLoans },
-                      { label: "Saved Books", value: (member.savedBooks || []).length },
-                    ].map(s => (
-                      <div key={s.label}>
-                        <p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: tier.color, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</p>
-                        <p style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.4rem", color: tier.color }}>{s.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm" style={{ background: tier.badge, color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+                  <div className="flex items-center justify-between px-8 py-4" style={{ borderTop: `1px solid ${tier.border}40` }}>
+                    <div className="flex gap-6">
+                      {[
+                        { label: "Total Borrowed", value: member.totalBorrowed },
+                        { label: "Active Loans", value: member.activeLoans },
+                        { label: "Saved Books", value: (member.savedBooks || []).length },
+                      ].map(s => (
+                        <div key={s.label}>
+                          <p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: tier.color, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</p>
+                          <p style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.4rem", color: tier.color }}>{s.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex-1 mx-8 max-w-xs">
+                      {(() => {
+                        const limits = { Bronze: 3, Silver: 5, Gold: 8 } as const;
+                        const max = limits[member.tier];
+                        const used = member.activeLoans;
+                        const pct = Math.min(100, (used / max) * 100);
+                        return (
+                          <div>
+                            <div className="flex justify-between text-xs mb-1" style={{ fontFamily: "'DM Mono', monospace", color: tier.color, opacity: 0.7 }}>
+                              <span>Loan Usage</span>
+                              <span>{used}/{max}</span>
+                            </div>
+                            <div className="w-full h-2 rounded-full" style={{ background: `${tier.badge}20` }}>
+                              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: tier.badge }} />
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  <button onClick={() => onRenewMembership(member.memberId)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm" style={{ background: tier.badge, color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
                     <RefreshCw size={14} /> Renew Membership
                   </button>
                 </div>
@@ -937,7 +1040,7 @@ export function MemberApp({
                           ))}
                         </ul>
                         {!isCurrent && (
-                          <button className="w-full mt-4 py-2 rounded-lg text-xs flex items-center justify-center gap-1 hover:opacity-80 transition-all" style={{ background: config.badge, color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+                          <button onClick={() => toast.info(`Visit the library to upgrade to ${name}`)} className="w-full mt-4 py-2 rounded-lg text-xs flex items-center justify-center gap-1 hover:opacity-80 transition-all" style={{ background: config.badge, color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
                             Upgrade <ArrowRight size={11} />
                           </button>
                         )}
@@ -1004,6 +1107,9 @@ export function MemberApp({
           onToggleSave={toggleSave}
           onClose={() => setDetailBook(null)}
           onBorrow={b => { handleBorrowRequest(b); setDetailBook(null); }}
+          onReserve={() => onAddReservation(detailBook.isbn || detailBook.id, member.memberId, member.tier === "Gold" ? "Priority" : "Normal")}
+          isReserved={reservations.some(r => r.book === (detailBook.isbn || detailBook.id) && r.member === member.memberId && r.status === "Active")}
+          canReserve={member.tier === "Silver" || member.tier === "Gold"}
         />
       )}
       {requestedBook && (

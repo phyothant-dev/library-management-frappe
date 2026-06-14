@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Toaster, toast } from "sonner";
-import { BookMarked, Shield, BookOpen, Users, BarChart3, Star, ArrowRight } from "lucide-react";
+import { BookMarked } from "lucide-react";
 import { LibrarianApp } from "./components/LibrarianApp";
 import { MemberApp } from "./components/MemberApp";
-import { BorrowRequest, ReturnRequest, LoanRecord, FineRecord, BookItem, Member, MEMBERS, LOANS as HARDCODED_LOANS } from "./components/data";
+import { BorrowRequest, ReturnRequest, LoanRecord, FineRecord, Reservation, BookItem, Member } from "./components/data";
 import { getBooks, bookToItem, updateBook } from "../service/api";
 import { getMembers, createMember, createUser, updateMember, frappeMemberToMember, memberToFrappePayload, hashId } from "../service/member";
 import {
@@ -12,11 +12,53 @@ import {
   getReturnRequests, createReturnRequest, updateReturnRequest as updateFrappeReturnRequest,
   frappeLoanToLoanRecord,
 } from "../service/loan";
-import { getFines, getMemberFines, createFine, updateFine, frappeFineToFineRecord } from "../service/fine";
+import { getFines, getMemberFines, createFine, updateFine, frappeFineToFineRecord, calculateFineAmount } from "../service/fine";
+import {
+  getReservations, getActiveReservations, createReservation, updateReservation as updateFrappeReservation,
+  frappeReservationToReservation,
+} from "../service/reservation";
+import { login as frappeLogin, determineRole } from "../service/auth";
 
-type Role = null | "librarian" | "member";
+const TIER_LIMITS: Record<string, { maxBooks: number; loanPeriodDays: number; maxRenewals: number }> = {
+  Bronze: { maxBooks: 3, loanPeriodDays: 21, maxRenewals: 1 },
+  Silver: { maxBooks: 5, loanPeriodDays: 28, maxRenewals: 2 },
+  Gold: { maxBooks: 8, loanPeriodDays: 35, maxRenewals: Infinity },
+};
 
-function LoginScreen({ onSelect }: { onSelect: (role: "librarian" | "member") => void }) {
+type Role = null | "librarian" | "assistant" | "member";
+
+function LoginScreen({ books, members, loans, onLogin }: { books: BookItem[]; members: Member[]; loans: LoanRecord[]; onLogin: (role: Role, memberId?: number) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoggingIn(true);
+    try {
+      const auth = await frappeLogin(email, password);
+      const role = determineRole(auth.roles);
+      if (role === "member") {
+        const member = members.find(m => m.email.toLowerCase() === email.toLowerCase());
+        if (!member) {
+          setError("Member profile not found — contact the library");
+          setLoggingIn(false);
+          return;
+        }
+        onLogin("member", member.id);
+      } else {
+        onLogin(role);
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.response?.data?._error_message || err?.message;
+      setError(typeof msg === "string" ? msg : "Login failed — check your credentials");
+    } finally {
+      setLoggingIn(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex" style={{ background: "var(--background)", fontFamily: "'Inter', sans-serif" }}>
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
@@ -51,63 +93,48 @@ function LoginScreen({ onSelect }: { onSelect: (role: "librarian" | "member") =>
 
           <h1 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.9rem", color: "var(--foreground)", lineHeight: 1.2 }}>Welcome back.</h1>
           <p className="mt-2 mb-8" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)", fontSize: "0.95rem" }}>
-            Choose how you'd like to access Arcanum today.
+            Sign in to access the Arcanum library portal.
           </p>
 
-          <div className="space-y-4">
-            <button onClick={() => onSelect("librarian")}
-              className="w-full text-left p-6 rounded-2xl border-2 transition-all duration-200 hover:border-primary hover:shadow-md group"
-              style={{ background: "#fff", borderColor: "var(--border)", cursor: "pointer" }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: "rgba(44,95,74,0.1)" }}>
-                    <Shield size={22} color="var(--primary)" />
-                  </div>
-                  <div>
-                    <p style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.05rem", color: "var(--foreground)" }}>Librarian</p>
-                    <p className="text-sm mt-0.5" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>Full system access & administration</p>
-                  </div>
-                </div>
-                <ArrowRight size={18} color="var(--muted-foreground)" className="group-hover:translate-x-1 transition-transform" />
-              </div>
-              <div className="flex gap-4 mt-5 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
-                {[{ icon: BarChart3, label: "Dashboard" }, { icon: BookOpen, label: "Catalog" }, { icon: Users, label: "Members" }].map(({ icon: Icon, label }) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <Icon size={12} color="var(--primary)" />
-                    <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{label}</span>
-                  </div>
-                ))}
-              </div>
-            </button>
+          <form onSubmit={submit} className="space-y-4">
+            <div>
+              <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Email</label>
+              <input
+                type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                style={{ background: "#fff", border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif" }}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Password</label>
+              <input
+                type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                style={{ background: "#fff", border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif" }}
+                required
+              />
+            </div>
 
-            <button onClick={() => onSelect("member")}
-              className="w-full text-left p-6 rounded-2xl border-2 transition-all duration-200 hover:border-accent hover:shadow-md group"
-              style={{ background: "#fff", borderColor: "var(--border)", cursor: "pointer" }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: "rgba(201,151,58,0.1)" }}>
-                    <BookOpen size={22} color="#c9973a" />
-                  </div>
-                  <div>
-                    <p style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.05rem", color: "var(--foreground)" }}>Member</p>
-                    <p className="text-sm mt-0.5" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>Browse books, manage your loans</p>
-                  </div>
-                </div>
-                <ArrowRight size={18} color="var(--muted-foreground)" className="group-hover:translate-x-1 transition-transform" />
-              </div>
-              <div className="flex gap-4 mt-5 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
-                {[{ icon: BookOpen, label: "Browse" }, { icon: Star, label: "Saved" }, { icon: BookMarked, label: "Membership" }].map(({ icon: Icon, label }) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <Icon size={12} color="#c9973a" />
-                    <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{label}</span>
-                  </div>
-                ))}
-              </div>
+            {error && (
+              <p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "#dc2626" }}>{error}</p>
+            )}
+
+            <button type="submit" disabled={loggingIn}
+              className="w-full py-3 rounded-xl text-sm transition-all hover:opacity-90 disabled:opacity-50"
+              style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+              {loggingIn ? "Signing in..." : "Sign In"}
             </button>
-          </div>
+          </form>
 
           <div className="mt-10 pt-8 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-            {[{ value: "3,842", label: "Books" }, { value: "1,247", label: "Members" }, { value: "284", label: "On Loan" }].map(s => (
+            {[
+              { value: books.length.toLocaleString(), label: "Books" },
+              { value: members.length.toLocaleString(), label: "Members" },
+              { value: loans.filter(l => l.status !== "returned").length.toLocaleString(), label: "On Loan" },
+            ].map(s => (
               <div key={s.label} className="text-center">
                 <p style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.4rem", color: "var(--foreground)" }}>{s.value}</p>
                 <p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{s.label}</p>
@@ -128,40 +155,29 @@ export default function App() {
   const [role, setRole] = useState<Role>(null);
   const [books, setBooks] = useState<BookItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [members, setMembers] = useState<Member[]>(MEMBERS);
+  const [members, setMembers] = useState<Member[]>([]);
   const [currentMemberId, setCurrentMemberId] = useState<number | null>(null);
   const [borrowRequests, setBorrowRequests] = useState<BorrowRequest[]>([]);
   const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
-  const [loans, setLoans] = useState<LoanRecord[]>(HARDCODED_LOANS);
+  const [loans, setLoans] = useState<LoanRecord[]>([]);
   const [fines, setFines] = useState<FineRecord[]>([]);
-  const membersFetched = useRef(false);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [bookData, memberData, borrowData, loanData, returnData, fineData] = await Promise.all([
+        const [bookData, memberData, borrowData, loanData, returnData, fineData, resData] = await Promise.all([
           getBooks(),
           getMembers().catch(() => []),
           getBorrowRequests().catch(() => []),
           fetchLoans().catch(() => []),
           getReturnRequests().catch(() => []),
           getFines().catch(() => []),
+          getReservations().catch(() => []),
         ]);
         setBooks(bookData.map(bookToItem));
-        if (memberData.length > 0 && !membersFetched.current) {
-          membersFetched.current = true;
-          const apiMembers: Member[] = memberData.map(frappeMemberToMember);
-          setMembers(prev => {
-            const emails = new Set(prev.map(m => m.email.toLowerCase()));
-            const merged = [...prev];
-            for (const am of apiMembers) {
-              if (!emails.has(am.email.toLowerCase())) {
-                emails.add(am.email.toLowerCase());
-                merged.push(am);
-              }
-            }
-            return merged;
-          });
+        if (memberData.length > 0) {
+          setMembers(memberData.map(frappeMemberToMember));
         }
         if (borrowData.length > 0) {
           const memberLookup = new Map(memberData.map(m => [m.name, m]));
@@ -216,6 +232,9 @@ export default function App() {
         }
         if (fineData.length > 0) {
           setFines(fineData.map(frappeFineToFineRecord));
+        }
+        if (resData.length > 0) {
+          setReservations(resData.map(frappeReservationToReservation));
         }
         if (returnData.length > 0) {
           const memberLookup = new Map(memberData.map(m => [m.name, m]));
@@ -304,9 +323,19 @@ export default function App() {
             status: status === "approved" ? "Approved" : "Rejected",
           });
           if (status === "approved") {
+            const memberRec = members.find(m => m.memberId === req.memberFrappeName);
+            const tier = memberRec?.tier || "Bronze";
+            const limits = TIER_LIMITS[tier];
+            if ((memberRec?.activeLoans || 0) >= limits.maxBooks) {
+              toast.error(`Limit reached — ${tier} members can only borrow ${limits.maxBooks} books at a time`);
+              setBorrowRequests(p =>
+                p.map(r => r.id === id ? { ...r, status: "rejected" } : r)
+              );
+              return prev;
+            }
             const today = new Date().toISOString().slice(0, 10);
             const due = new Date();
-            due.setDate(due.getDate() + 14);
+            due.setDate(due.getDate() + limits.loanPeriodDays);
             const dueDate = due.toISOString().slice(0, 10);
             const loan = await createLoan({
               book: req.bookIsbn || req.bookId,
@@ -327,6 +356,7 @@ export default function App() {
               due: dueDate,
               returned: null,
               status: "active",
+              renewals: 0,
             } as LoanRecord, ...p]);
             setBorrowRequests(p =>
               p.map(r => r.id === id ? { ...r, status, dueDate } : r)
@@ -334,12 +364,16 @@ export default function App() {
             try {
               const isbn = req.bookIsbn || req.bookId;
               const memberName = req.memberFrappeName || "";
-              const memberRec = members.find(m => m.memberId === memberName);
               await updateBook(isbn, { borrowed_copies: (books.find(b => b.isbn === isbn)?.borrowedCopies || 0) + 1 } as any);
               await updateMember(memberName, {
                 active_loans: (memberRec?.activeLoans || 0) + 1,
                 total_borrowed: (memberRec?.totalBorrowed || 0) + 1,
               } as any);
+              setMembers(p => p.map(m =>
+                m.memberId === memberName
+                  ? { ...m, activeLoans: (m.activeLoans || 0) + 1, totalBorrowed: (m.totalBorrowed || 0) + 1 }
+                  : m
+              ));
             } catch (countErr) {
               console.error("Failed to update counters:", countErr);
             }
@@ -400,6 +434,79 @@ export default function App() {
     }
   };
 
+  const renewMembership = async (memberId: string) => {
+    const member = members.find(m => m.memberId === memberId);
+    if (!member) return;
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    const expiry = nextYear.toISOString().slice(0, 10);
+    try {
+      await updateMember(memberId, { expiry_date: expiry } as any);
+      setMembers(p => p.map(m =>
+        m.memberId === memberId ? { ...m, expiryDate: nextYear.toLocaleDateString("en-US", { month: "short", year: "numeric" }) } : m
+      ));
+      toast.success("Membership renewed", { description: `Expires ${nextYear.toLocaleDateString("en-US", { month: "long", year: "numeric" })}` });
+    } catch (err) {
+      toast.error("Failed to renew membership");
+      console.error(err);
+    }
+  };
+
+  const renewLoan = async (loanFrappeName: string, memberTier: string) => {
+    const limits = TIER_LIMITS[memberTier] || TIER_LIMITS.Bronze;
+    const loan = loans.find(l => l.frappeName === loanFrappeName);
+    if (!loan) { toast.error("Loan not found"); return; }
+    if ((loan.renewals || 0) >= limits.maxRenewals) {
+      toast.error(`Renewal limit reached — ${memberTier} allows ${limits.maxRenewals} renewals`);
+      return;
+    }
+    const today = new Date();
+    const newDue = new Date(loan.due);
+    newDue.setDate(newDue.getDate() + limits.loanPeriodDays);
+    if (newDue <= today) {
+      newDue.setTime(today.getTime() + limits.loanPeriodDays * 24 * 60 * 60 * 1000);
+    }
+    const newDueStr = newDue.toISOString().slice(0, 10);
+    try {
+      await updateFrappeLoan(loanFrappeName, { due_date: newDueStr, renewals: (loan.renewals || 0) + 1 } as any);
+      setLoans(p => p.map(l =>
+        l.frappeName === loanFrappeName
+          ? { ...l, due: newDueStr, renewals: (l.renewals || 0) + 1 }
+          : l
+      ));
+      toast.success("Loan renewed", { description: `New due date: ${newDueStr}` });
+    } catch (err) {
+      toast.error("Failed to renew loan");
+      console.error(err);
+    }
+  };
+
+  const addReservation = async (bookId: string, memberId: string, priority: "Normal" | "Priority") => {
+    try {
+      const created = await createReservation({ book: bookId, member: memberId, priority });
+      const res = frappeReservationToReservation(created);
+      setReservations(prev => [...prev, res]);
+      toast.success("Book reserved", { description: "You'll be notified when it's available" });
+    } catch (err) {
+      toast.error("Failed to reserve book");
+      console.error(err);
+    }
+  };
+
+  const cancelReservation = async (reservation: Reservation) => {
+    if (!reservation.frappeName) return;
+    try {
+      await updateFrappeReservation(reservation.frappeName, { status: "Cancelled" });
+      setReservations(p => p.map(r =>
+        r.id === reservation.id ? { ...r, status: "Cancelled" } : r
+      ));
+      toast.success("Reservation cancelled");
+    } catch (err) {
+      toast.error("Failed to cancel reservation");
+      console.error(err);
+    }
+  };
+
   const confirmReturn = (id: number) => {
     setReturnRequests(prev => {
       const req = prev.find(r => r.id === id);
@@ -434,10 +541,47 @@ export default function App() {
               const memberRec = members.find(m => m.memberId === req.memberFrappeName);
               if (memberRec) {
                 await updateMember(req.memberFrappeName || "", { active_loans: Math.max(0, (memberRec.activeLoans || 1) - 1) } as any);
+                setMembers(p => p.map(m =>
+                  m.memberId === req.memberFrappeName
+                    ? { ...m, activeLoans: Math.max(0, (m.activeLoans || 1) - 1) }
+                    : m
+                ));
+              }
+              if (req.dueDate && new Date(req.dueDate) < new Date()) {
+                const fineAmount = calculateFineAmount(
+                  memberRec?.tier || "Bronze",
+                  req.dueDate,
+                  today,
+                );
+                if (fineAmount > 0) {
+                  const created = await createFine({
+                    member: req.memberFrappeName || "",
+                    loan: req.loanFrappeName,
+                    amount: fineAmount,
+                    reason: "Overdue Return",
+                    fine_date: today,
+                  });
+                  setFines(prev => [...prev, frappeFineToFineRecord(created)]);
+                  toast.warning(`Overdue fine: $${fineAmount.toFixed(2)}`, {
+                    description: `${req.bookTitle} · ${memberRec?.tier || "Bronze"} tier`,
+                  });
+                }
               }
             } catch (countErr) {
               console.error("Failed to update counters:", countErr);
             }
+          }
+          const bookReservations = reservations.filter(
+            r => r.book === (req.bookIsbn || req.bookId) && r.status === "Active"
+          );
+          if (bookReservations.length > 0) {
+            const sorted = bookReservations.sort((a, b) =>
+              a.priority === "Priority" ? -1 : b.priority === "Priority" ? 1 : 0
+            );
+            const next = sorted[0];
+            toast.info(`Reservation queue — ${bookReservations.length} waiting`, {
+              description: `${next.memberName || next.member} is next (${next.priority})`,
+            });
           }
           toast.success("Return confirmed", {
             description: req.bookTitle,
@@ -465,9 +609,10 @@ export default function App() {
       </div>
     );
 
-    if (role === null) return <LoginScreen onSelect={setRole} />;
-    if (role === "librarian") return (
+    if (role === null) return <LoginScreen books={books} members={members} loans={loans} onLogin={(r, memberId) => { setRole(r); if (memberId) setCurrentMemberId(memberId); }} />;
+    if (role === "librarian" || role === "assistant") return (
       <LibrarianApp
+        role={role}
         onSwitchRole={() => { setRole(null); setCurrentMemberId(null); }}
         books={books}
         onBooksChange={setBooks}
@@ -478,6 +623,7 @@ export default function App() {
         returnRequests={returnRequests}
         onConfirmReturn={confirmReturn}
         loans={loans}
+        reservations={reservations}
       />
     );
     if (role === "member") return (
@@ -486,7 +632,6 @@ export default function App() {
         books={books}
         members={members}
         currentMemberId={currentMemberId}
-        onLogin={setCurrentMemberId}
         borrowRequests={borrowRequests}
         onAddRequest={addBorrowRequest}
         returnRequests={returnRequests}
@@ -494,6 +639,11 @@ export default function App() {
         loans={loans}
         fines={fines}
         onToggleSavedBook={toggleSavedBook}
+        onRenewMembership={renewMembership}
+        onRenewLoan={renewLoan}
+        reservations={reservations}
+        onAddReservation={addReservation}
+        onCancelReservation={cancelReservation}
       />
     );
     return null;

@@ -3,14 +3,14 @@ import axios from "axios";
 import type { FrappeMember, LibraryMember, MemberTier, MemberStatus } from "../types/member";
 import type { Member } from "../app/components/data";
 
-const BASE_URL = "https://phyothant.j.frappe.cloud";
+const BASE_URL = import.meta.env.VITE_FRAPPE_BASE_URL;
 
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
     "Accept": "application/json",
     "Content-Type": "application/json",
-    "Authorization": "token 74665ad15a4aea0:12c4b2f10b7b837",
+    "Authorization": `token ${import.meta.env.VITE_FRAPPE_API_KEY}:${import.meta.env.VITE_FRAPPE_API_SECRET}`,
   },
 });
 

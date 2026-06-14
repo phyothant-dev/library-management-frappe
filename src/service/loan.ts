@@ -1,14 +1,14 @@
 import axios from "axios";
 import type { BorrowRequest, ReturnRequest, LoanRecord } from "../app/components/data";
 
-const BASE_URL = "https://phyothant.j.frappe.cloud";
+const BASE_URL = import.meta.env.VITE_FRAPPE_BASE_URL;
 
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
     "Accept": "application/json",
     "Content-Type": "application/json",
-    "Authorization": "token 74665ad15a4aea0:12c4b2f10b7b837",
+    "Authorization": `token ${import.meta.env.VITE_FRAPPE_API_KEY}:${import.meta.env.VITE_FRAPPE_API_SECRET}`,
   },
 });
 
@@ -36,6 +36,7 @@ export interface FrappeLoan {
   borrowed_date: string;
   due_date: string;
   return_date?: string;
+  renewals?: number;
   creation: string;
 }
 
@@ -164,6 +165,7 @@ export function frappeLoanToLoanRecord(
     borrowed: l.borrowed_date,
     due: l.due_date,
     returned: l.return_date || null,
+    renewals: l.renewals ?? 0,
     status: l.status === "Returned"
       ? "returned"
       : isOverdue

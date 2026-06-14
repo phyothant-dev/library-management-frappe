@@ -1,18 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   BookOpen, Users, BarChart3, Clock, ChevronRight, TrendingUp,
   AlertTriangle, CheckCircle2, Plus, X, Search, Star,
   BookMarked, Calendar, Phone, Mail, Trash2, Send,
-  ThumbsUp, ThumbsDown, Bell,
+  ThumbsUp, ThumbsDown, Bell, Pencil,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import { MONTHLY_DATA, GENRE_DATA, BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord } from "./data";
-import { createBook, deleteBook, bookToItem, itemToBook } from "../../service/api";
+import { computeGenreData, computeMonthlyData, BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord, Reservation } from "./data";
+import { createBook, updateBook, deleteBook, bookToItem, itemToBook } from "../../service/api";
 
-type Tab = "dashboard" | "catalog" | "members" | "loans" | "requests";
+type Tab = "dashboard" | "catalog" | "members" | "loans" | "requests" | "reservations";
 
 const GENRES = ["All", "Historical", "Literary", "Gothic", "Mystery", "Modernist", "Victorian", "Adventure"];
 
@@ -43,7 +43,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 /* ─── Add Book Modal ─────────────────────────────────────────────────────── */
 function AddBookModal({ onClose, onAdd }: { onClose: () => void; onAdd: (b: BookItem) => void }) {
-  const [form, setForm] = useState({ title: "", author: "", genre: "Historical", year: "2024", isbn: "", copies: "1", coverUrl: "", description: "" });
+  const [form, setForm] = useState({ title: "", author: "", genre: "Historical", year: "2024", isbn: "", copies: "1", coverUrl: "", description: "", rating: "4" });
+  const [hoverRating, setHoverRating] = useState(0);
   const [saving, setSaving] = useState(false);
   const handle = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
   const submit = async () => {
@@ -53,7 +54,7 @@ function AddBookModal({ onClose, onAdd }: { onClose: () => void; onAdd: (b: Book
       const payload = itemToBook({
         title: form.title, author: form.author, genre: form.genre,
         year: parseInt(form.year), isbn: form.isbn || undefined,
-        totalCopies: parseInt(form.copies), available: true, rating: 4.0,
+        totalCopies: parseInt(form.copies), available: true, rating: parseFloat(form.rating || "4"),
         coverUrl: form.coverUrl, description: form.description,
       });
       const frappeBook = await createBook(payload);
@@ -105,6 +106,32 @@ function AddBookModal({ onClose, onAdd }: { onClose: () => void; onAdd: (b: Book
               {["Historical", "Literary", "Gothic", "Mystery", "Modernist", "Victorian", "Adventure", "Other"].map(g => <option key={g}>{g}</option>)}
             </select>
           </div>
+          <div>
+            <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Rating</label>
+            <div className="flex items-center gap-1.5 h-[42px] px-3.5 rounded-lg" style={{ background: "var(--secondary)", border: "1.5px solid var(--border)" }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => handle("rating", n.toString())}
+                  onMouseEnter={() => setHoverRating(n)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  className="p-0.5 transition-all duration-150"
+                  style={{ background: "none", border: "none", cursor: "pointer" }}
+                >
+                  <Star
+                    size={18}
+                    fill={n <= (hoverRating || parseInt(form.rating)) ? "#c9973a" : "transparent"}
+                    color={n <= (hoverRating || parseInt(form.rating)) ? "#c9973a" : "#d4cfc8"}
+                    className="transition-colors duration-150"
+                  />
+                </button>
+              ))}
+              <span className="ml-2 text-xs font-medium" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>
+                {form.rating}/5
+              </span>
+            </div>
+          </div>
           <div className="col-span-2">
             <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Cover Image URL</label>
             <input
@@ -128,6 +155,134 @@ function AddBookModal({ onClose, onAdd }: { onClose: () => void; onAdd: (b: Book
         <div className="flex gap-3 px-8 pb-7">
           <button onClick={submit} disabled={saving} className="flex-1 py-3 rounded-xl text-sm transition-all hover:opacity-90 disabled:opacity-50" style={{ background: "var(--primary)", color: "#fff", fontFamily: "'Inter', sans-serif", fontWeight: 600, border: "none", cursor: "pointer" }}>
             {saving ? "Saving..." : "Add to Collection"}
+          </button>
+          <button onClick={onClose} className="px-6 py-3 rounded-xl text-sm" style={{ background: "var(--secondary)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif", border: "1px solid var(--border)", cursor: "pointer" }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Edit Book Modal ────────────────────────────────────────────────────── */
+function EditBookModal({ book, onClose, onSave }: { book: BookItem; onClose: () => void; onSave: (b: BookItem) => void }) {
+  const [form, setForm] = useState({
+    title: book.title, author: book.author, genre: book.genre,
+    year: book.year.toString(), isbn: book.isbn, copies: book.totalCopies.toString(),
+    coverUrl: book.coverUrl, description: book.description, rating: book.rating.toString(),
+  });
+  const [hoverRating, setHoverRating] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const handle = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const submit = async () => {
+    if (!form.title || !form.author) return;
+    setSaving(true);
+    try {
+      const payload = itemToBook({
+        title: form.title, author: form.author, genre: form.genre,
+        year: parseInt(form.year), isbn: form.isbn || undefined,
+        totalCopies: parseInt(form.copies), available: book.available, rating: parseFloat(form.rating || "4"),
+        coverUrl: form.coverUrl, description: form.description,
+      });
+      const frappeBook = await updateBook(book.isbn, payload);
+      onSave(bookToItem(frappeBook));
+      onClose();
+    } catch (err) {
+      console.error("Failed to update book:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div className="rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden" style={{ background: "#fff" }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-8 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.2rem", color: "var(--foreground)" }}>Edit Book</h2>
+            <p className="text-xs mt-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Update "{book.title}" details</p>
+          </div>
+          <button onClick={onClose} style={{ background: "var(--secondary)", border: "none", borderRadius: "8px", padding: "8px", cursor: "pointer" }}><X size={16} color="var(--muted-foreground)" /></button>
+        </div>
+        <div className="p-8 grid grid-cols-2 gap-4">
+          {[
+            { label: "Title *", key: "title", placeholder: "Book title", full: true },
+            { label: "Author *", key: "author", placeholder: "Author name" },
+            { label: "ISBN", key: "isbn", placeholder: "978-..." },
+            { label: "Year", key: "year", placeholder: "2024" },
+            { label: "Copies", key: "copies", placeholder: "1" },
+          ].map(({ label, key, placeholder, full }) => (
+            <div key={key} className={full ? "col-span-2" : ""}>
+              <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{label}</label>
+              <input
+                value={(form as any)[key]}
+                onChange={e => handle(key, e.target.value)}
+                placeholder={placeholder}
+                className="w-full px-3.5 py-2.5 rounded-lg outline-none text-sm"
+                style={{ background: "var(--secondary)", border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif" }}
+              />
+            </div>
+          ))}
+          <div>
+            <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Genre</label>
+            <select
+              value={form.genre} onChange={e => handle("genre", e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-lg outline-none text-sm"
+              style={{ background: "var(--secondary)", border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif" }}
+            >
+              {["Historical", "Literary", "Gothic", "Mystery", "Modernist", "Victorian", "Adventure", "Other"].map(g => <option key={g}>{g}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Rating</label>
+            <div className="flex items-center gap-1.5 h-[42px] px-3.5 rounded-lg" style={{ background: "var(--secondary)", border: "1.5px solid var(--border)" }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => handle("rating", n.toString())}
+                  onMouseEnter={() => setHoverRating(n)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  className="p-0.5 transition-all duration-150"
+                  style={{ background: "none", border: "none", cursor: "pointer" }}
+                >
+                  <Star
+                    size={18}
+                    fill={n <= (hoverRating || parseInt(form.rating)) ? "#c9973a" : "transparent"}
+                    color={n <= (hoverRating || parseInt(form.rating)) ? "#c9973a" : "#d4cfc8"}
+                    className="transition-colors duration-150"
+                  />
+                </button>
+              ))}
+              <span className="ml-2 text-xs font-medium" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>
+                {form.rating}/5
+              </span>
+            </div>
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Cover Image URL</label>
+            <input
+              value={form.coverUrl} onChange={e => handle("coverUrl", e.target.value)}
+              placeholder="https://... (leave blank for default)"
+              className="w-full px-3.5 py-2.5 rounded-lg outline-none text-sm"
+              style={{ background: "var(--secondary)", border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif" }}
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Description</label>
+            <textarea
+              value={form.description} onChange={e => handle("description", e.target.value)}
+              placeholder="Brief description of the book..."
+              rows={3}
+              className="w-full px-3.5 py-2.5 rounded-lg outline-none text-sm resize-none"
+              style={{ background: "var(--secondary)", border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif" }}
+            />
+          </div>
+        </div>
+        <div className="flex gap-3 px-8 pb-7">
+          <button onClick={submit} disabled={saving} className="flex-1 py-3 rounded-xl text-sm transition-all hover:opacity-90 disabled:opacity-50" style={{ background: "var(--primary)", color: "#fff", fontFamily: "'Inter', sans-serif", fontWeight: 600, border: "none", cursor: "pointer" }}>
+            {saving ? "Saving..." : "Save Changes"}
           </button>
           <button onClick={onClose} className="px-6 py-3 rounded-xl text-sm" style={{ background: "var(--secondary)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif", border: "1px solid var(--border)", cursor: "pointer" }}>
             Cancel
@@ -221,7 +376,7 @@ function AddMemberModal({ onClose, onAdd }: { onClose: () => void; onAdd: (m: Me
 }
 
 /* ─── Book Card (Librarian) ───────────────────────────────────────────────── */
-function BookCard({ book, onDelete }: { book: BookItem; onDelete: (id: string) => void }) {
+function BookCard({ book, onDelete, onEdit, isAssistant }: { book: BookItem; onDelete: (id: string) => void; onEdit?: (b: BookItem) => void; isAssistant?: boolean }) {
   const avail = book.totalCopies - book.borrowedCopies;
   return (
     <div className="group rounded-2xl border overflow-hidden hover:shadow-lg transition-all duration-300" style={{ background: "#fff", borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
@@ -232,13 +387,24 @@ function BookCard({ book, onDelete }: { book: BookItem; onDelete: (id: string) =
         <span className="absolute top-3 right-3 text-xs px-2.5 py-1 rounded-full" style={{ fontFamily: "'DM Mono', monospace", background: avail > 0 ? "rgba(220,252,231,0.95)" : "rgba(254,226,226,0.95)", color: avail > 0 ? "#15803d" : "#dc2626" }}>
           {avail}/{book.totalCopies} avail.
         </span>
-        <button
-          onClick={() => onDelete(book.id)}
-          className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg"
-          style={{ background: "rgba(220,38,38,0.85)", border: "none", cursor: "pointer" }}
-        >
-          <Trash2 size={12} color="#fff" />
-        </button>
+        {!isAssistant && (
+          <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => onEdit?.(book)}
+              className="p-1.5 rounded-lg"
+              style={{ background: "rgba(44,95,74,0.85)", border: "none", cursor: "pointer" }}
+            >
+              <Pencil size={12} color="#fff" />
+            </button>
+            <button
+              onClick={() => onDelete(book.id)}
+              className="p-1.5 rounded-lg"
+              style={{ background: "rgba(220,38,38,0.85)", border: "none", cursor: "pointer" }}
+            >
+              <Trash2 size={12} color="#fff" />
+            </button>
+          </div>
+        )}
       </div>
       <div className="p-4">
         <h3 className="leading-snug mb-0.5" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "0.95rem", color: "var(--foreground)" }}>{book.title}</h3>
@@ -259,8 +425,9 @@ function BookCard({ book, onDelete }: { book: BookItem; onDelete: (id: string) =
 
 /* ─── LibrarianApp ───────────────────────────────────────────────────────── */
 export function LibrarianApp({
-  onSwitchRole, books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans,
+  role = "librarian", onSwitchRole, books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans, reservations,
 }: {
+  role?: "librarian" | "assistant";
   onSwitchRole: () => void;
   books: BookItem[];
   onBooksChange: (books: BookItem[]) => void;
@@ -271,11 +438,14 @@ export function LibrarianApp({
   returnRequests: ReturnRequest[];
   onConfirmReturn: (id: number) => void;
   loans: LoanRecord[];
+  reservations: Reservation[];
 }) {
+  const isAssistant = role === "assistant";
   const [tab, setTab] = useState<Tab>("dashboard");
   const [search, setSearch] = useState("");
   const [genreFilter, setGenreFilter] = useState("All");
   const [showAddBook, setShowAddBook] = useState(false);
+  const [editBook, setEditBook] = useState<BookItem | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
 
@@ -293,11 +463,15 @@ export function LibrarianApp({
   const pendingReturns = returnRequests.filter(r => r.status === "pending").length;
   const pendingCount = pendingBorrows + pendingReturns;
 
+  const genreData = useMemo(() => computeGenreData(books), [books]);
+  const monthlyData = useMemo(() => computeMonthlyData(loans), [loans]);
+
   const navItems: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "catalog", label: "Book Catalog", icon: BookOpen },
     { id: "members", label: "Members", icon: Users },
     { id: "requests", label: "Pending Requests", icon: Bell, badge: pendingCount || undefined },
+    { id: "reservations", label: "Reservations", icon: BookMarked, badge: reservations.filter(r => r.status === "Active").length || undefined },
     { id: "loans", label: "Loan Records", icon: Clock },
   ];
 
@@ -322,13 +496,13 @@ export function LibrarianApp({
               <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.58rem", color: "var(--muted-foreground)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Library System</p>
             </div>
           </div>
-          <div className="mt-4 px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: "rgba(44,95,74,0.08)" }}>
-            <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--primary)" }}>
-              <span style={{ fontSize: "0.55rem", color: "#fff", fontFamily: "'DM Mono', monospace" }}>L</span>
+          <div className="mt-4 px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: isAssistant ? "rgba(124,111,89,0.08)" : "rgba(44,95,74,0.08)" }}>
+            <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: isAssistant ? "#7c6f59" : "var(--primary)" }}>
+              <span style={{ fontSize: "0.55rem", color: "#fff", fontFamily: "'DM Mono', monospace" }}>{isAssistant ? "A" : "L"}</span>
             </div>
             <div>
-              <p style={{ fontFamily: "'Inter', sans-serif", fontSize: "0.72rem", fontWeight: 600, color: "var(--foreground)" }}>Librarian View</p>
-              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "var(--muted-foreground)" }}>Full access</p>
+              <p style={{ fontFamily: "'Inter', sans-serif", fontSize: "0.72rem", fontWeight: 600, color: "var(--foreground)" }}>{isAssistant ? "Assistant View" : "Librarian View"}</p>
+              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "var(--muted-foreground)" }}>{isAssistant ? "Limited access" : "Full access"}</p>
             </div>
           </div>
         </div>
@@ -376,6 +550,7 @@ export function LibrarianApp({
               {tab === "catalog" && "Book Catalog"}
               {tab === "members" && "Members"}
               {tab === "requests" && "Pending Requests"}
+              {tab === "reservations" && "Reservations"}
               {tab === "loans" && "Loan Records"}
             </h1>
             <p className="text-xs mt-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>
@@ -383,6 +558,7 @@ export function LibrarianApp({
               {tab === "catalog" && `${books.length} titles · ${books.filter(b => b.available).length} with copies available`}
               {tab === "members" && `${members.length} registered patrons`}
               {tab === "requests" && `${pendingCount} pending · ${borrowRequests.length} total`}
+              {tab === "reservations" && `${reservations.filter(r => r.status === "Active").length} active reservations`}
               {tab === "loans" && "All borrowing activity"}
             </p>
           </div>
@@ -396,7 +572,7 @@ export function LibrarianApp({
                   {pendingCount} Pending Request{pendingCount > 1 ? "s" : ""}
                 </button>
               )}
-              {tab === "catalog" && (
+              {tab === "catalog" && !isAssistant && (
                 <button onClick={() => setShowAddBook(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm hover:opacity-90 transition-all" style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
                   <Plus size={15} /> Add Book
                 </button>
@@ -443,7 +619,7 @@ export function LibrarianApp({
                     <TrendingUp size={16} color="var(--primary)" />
                   </div>
                   <ResponsiveContainer width="100%" height={200}>
-                    <AreaChart data={MONTHLY_DATA}>
+                    <AreaChart data={monthlyData}>
                       <defs>
                         <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#2c5f4a" stopOpacity={0.15} />
@@ -469,13 +645,13 @@ export function LibrarianApp({
                   <p className="text-xs mt-0.5 mb-4" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Collection breakdown</p>
                   <ResponsiveContainer width="100%" height={130}>
                     <PieChart>
-                      <Pie data={GENRE_DATA} cx="50%" cy="50%" innerRadius={36} outerRadius={55} dataKey="value" paddingAngle={4}>
-                        {GENRE_DATA.map((e, i) => <Cell key={i} fill={e.color} />)}
+                      <Pie data={genreData} cx="50%" cy="50%" innerRadius={36} outerRadius={55} dataKey="value" paddingAngle={4}>
+                        {genreData.map((g, i) => <Cell key={i} fill={g.color} />)}
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-2 mt-3">
-                    {GENRE_DATA.map(g => (
+                    {genreData.map(g => (
                       <div key={g.name} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full" style={{ background: g.color }} />
@@ -493,7 +669,7 @@ export function LibrarianApp({
                   <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "var(--foreground)" }}>New Acquisitions</h2>
                   <p className="text-xs mt-0.5 mb-5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Monthly additions</p>
                   <ResponsiveContainer width="100%" height={150}>
-                    <BarChart data={MONTHLY_DATA} barSize={22}>
+                    <BarChart data={monthlyData} barSize={22}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
                       <XAxis dataKey="month" tick={{ fill: "#78716c", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fill: "#78716c", fontSize: 11, fontFamily: "'DM Mono'" }} axisLine={false} tickLine={false} />
@@ -546,14 +722,19 @@ export function LibrarianApp({
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
                 {filteredBooks.map(b => (
-                  <BookCard key={b.id} book={b} onDelete={async id => {
-                    try {
-                      await deleteBook(b.isbn);
-                      onBooksChange(books.filter(x => x.id !== id));
-                    } catch (err) {
-                      console.error("Failed to delete book:", err);
-                    }
-                  }} />
+                  <BookCard key={b.id} book={b} isAssistant={isAssistant}
+                    onEdit={isAssistant ? undefined : setEditBook}
+                    onDelete={async id => {
+                      if (window.confirm(`Delete "${b.title}"? This cannot be undone.`)) {
+                        try {
+                          await deleteBook(b.isbn);
+                          onBooksChange(books.filter(x => x.id !== id));
+                        } catch (err) {
+                          console.error("Failed to delete book:", err);
+                        }
+                      }
+                    }}
+                  />
                 ))}
               </div>
               {filteredBooks.length === 0 && (
@@ -794,6 +975,49 @@ export function LibrarianApp({
             </div>
           )}
 
+          {/* ── RESERVATIONS ── */}
+          {tab === "reservations" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border bg-white overflow-hidden" style={{ borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div className="px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+                  <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "var(--foreground)" }}>Active Reservations</h2>
+                </div>
+                {reservations.filter(r => r.status === "Active").length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-sm" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>No active reservations</p>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead><tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      {["Book", "Member", "Reserved Date", "Priority", "Status"].map(h => (
+                        <th key={h} className="text-left px-5 py-3 text-xs uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)", fontWeight: 400 }}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {reservations.filter(r => r.status === "Active").sort((a, b) => a.priority === "Priority" ? -1 : 1).map(r => {
+                        const book = books.find(b => b.isbn === r.book || b.id === r.book);
+                        const member = members.find(m => m.memberId === r.member);
+                        return (
+                          <tr key={r.id} className="border-b hover:bg-secondary/40 transition-colors" style={{ borderColor: "var(--border)" }}>
+                            <td className="py-3.5 px-5"><p style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: "var(--foreground)", fontSize: "0.9rem" }}>{r.bookTitle || book?.title || r.book}</p></td>
+                            <td className="py-3.5 px-5"><p className="text-sm" style={{ fontFamily: "'Inter', sans-serif", color: "var(--foreground)" }}>{member?.name || r.member}</p></td>
+                            <td className="py-3.5 px-5"><p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{r.reservedDate}</p></td>
+                            <td className="py-3.5 px-5">
+                              <span className="text-xs px-2.5 py-1 rounded-full" style={{ fontFamily: "'DM Mono', monospace", background: r.priority === "Priority" ? "rgba(217,119,6,0.1)" : "rgba(107,114,128,0.1)", color: r.priority === "Priority" ? "#d97706" : "#6b7280" }}>
+                                {r.priority}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-5"><span className="text-xs px-2.5 py-1 rounded-full" style={{ fontFamily: "'DM Mono', monospace", background: "rgba(22,163,74,0.1)", color: "#15803d" }}>Active</span></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── LOANS ── */}
           {tab === "loans" && (
             <div className="space-y-5">
@@ -846,6 +1070,13 @@ export function LibrarianApp({
       </div>
 
       {showAddMember && <AddMemberModal onClose={() => setShowAddMember(false)} onAdd={onAddMember} />}
+      {editBook && (
+        <EditBookModal
+          book={editBook}
+          onClose={() => setEditBook(null)}
+          onSave={updated => onBooksChange(books.map(b => b.id === updated.id ? updated : b))}
+        />
+      )}
     </div>
   );
 }
