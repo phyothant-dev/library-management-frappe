@@ -433,7 +433,7 @@ const MEMBER_STATUS_STYLE: Record<string, { bg: string; color: string; label: st
 };
 
 export function MemberApp({
-  books, members, currentMemberId, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest, loans, fines, onToggleSavedBook, onRenewMembership, onRenewLoan, reservations, onAddReservation, onCancelReservation,
+  books, members, currentMemberId, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest, loans, fines, onToggleSavedBook, onRenewMembership, onRenewLoan, reservations, onAddReservation, onCancelReservation, onPayFine,
 }: {
   books: BookItem[];
   members: Member[];
