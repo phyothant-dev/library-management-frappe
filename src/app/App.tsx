@@ -659,6 +659,7 @@ export default function App() {
         onConfirmReturn={confirmReturn}
         loans={loans}
         reservations={reservations}
+        fines={fines}
         onEditMember={editMember}
         onDeleteMember={deleteMember}
       />

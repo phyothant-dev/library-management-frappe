@@ -654,9 +654,91 @@ function ReturnRequestModal({ req, loans, members, onClose, onConfirm }: {
   );
 }
 
+/* ─── Loan Detail Modal ──────────────────────────────────────────────────── */
+function LoanDetailModal({ loan, members, books, fines, onClose }: {
+  loan: LoanRecord; members: Member[]; books: BookItem[]; fines?: FineRecord[]; onClose: () => void;
+}) {
+  const member = members.find(m => m.memberId === loan.memberFrappeName || m.id === loan.memberId);
+  const book = books.find(b => b.isbn === loan.bookIsbn || b.id === loan.bookId);
+  const loanFines = (fines || []).filter(f => f.loan === loan.frappeName);
+  const totalFineAmount = loanFines.reduce((s, f) => s + f.amount, 0);
+  const s = STATUS_BADGE[loan.status];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }} onClick={onClose}>
+      <div className="rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden bg-white" onClick={e => e.stopPropagation()}>
+        <div className="flex">
+          <div className="w-40 flex-shrink-0">
+            <img src={book?.coverUrl || "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&w=300&h=420&q=80"} alt={loan.bookTitle} className="w-full h-full object-cover" style={{ minHeight: "260px" }} />
+          </div>
+          <div className="flex-1 p-6 flex flex-col">
+            <div className="flex items-start justify-between mb-3">
+              <span className="text-xs px-2.5 py-1 rounded-full" style={{ fontFamily: "'DM Mono', monospace", background: s.bg, color: s.color }}>
+                {s.label}
+              </span>
+              <button onClick={onClose} style={{ background: "var(--secondary)", border: "none", borderRadius: "8px", padding: "6px", cursor: "pointer" }}><X size={15} color="var(--muted-foreground)" /></button>
+            </div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.2rem", color: "var(--foreground)", fontStyle: "italic" }}>{loan.bookTitle}</h2>
+            <p className="mt-1 mb-4 text-sm" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{book?.author || ""}</p>
+            <div className="flex items-center gap-2.5 p-3 rounded-xl mb-4" style={{ background: "var(--secondary)" }}>
+              <img src={member?.avatarUrl || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&w=80&h=80&q=80"} alt={loan.memberName} className="w-8 h-8 rounded-full object-cover" />
+              <div>
+                <p className="text-sm" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, color: "var(--foreground)" }}>{loan.memberName}</p>
+                <p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{member?.tier || ""}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="rounded-xl p-3" style={{ background: "var(--secondary)" }}>
+                <p className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Borrowed</p>
+                <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", color: "var(--foreground)", fontWeight: 600 }}>{loan.borrowed}</p>
+              </div>
+              <div className="rounded-xl p-3" style={{ background: loan.status === "overdue" ? "rgba(220,38,38,0.08)" : "var(--secondary)" }}>
+                <p className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Due Date</p>
+                <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", fontWeight: 600, color: loan.status === "overdue" ? "#dc2626" : "var(--foreground)" }}>{loan.due}</p>
+              </div>
+              {loan.returned && (
+                <div className="rounded-xl p-3" style={{ background: "rgba(22,163,74,0.06)" }}>
+                  <p className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Returned</p>
+                  <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", color: "#15803d", fontWeight: 600 }}>{loan.returned}</p>
+                </div>
+              )}
+              <div className="rounded-xl p-3" style={{ background: "var(--secondary)" }}>
+                <p className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Renewals</p>
+                <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", color: "var(--foreground)", fontWeight: 600 }}>{loan.renewals || 0}</p>
+              </div>
+            </div>
+
+            {/* Fines on this loan */}
+            {loanFines.length > 0 && (
+              <div className="rounded-xl p-3 mb-2" style={{ background: "rgba(220,38,38,0.06)", border: "1.5px solid rgba(220,38,38,0.15)" }}>
+                <p className="text-xs font-semibold mb-2" style={{ fontFamily: "'Inter', sans-serif", color: "#dc2626" }}>
+                  <AlertTriangle size={13} className="inline mr-1" />Fines Applied ({loanFines.length})
+                </p>
+                {loanFines.map(f => (
+                  <div key={f.id} className="flex items-center justify-between py-1">
+                    <div>
+                      <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "#dc2626" }}>${f.amount.toFixed(2)}</span>
+                      <span className="text-xs ml-2" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{f.reason}</span>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ fontFamily: "'DM Mono', monospace", background: f.status === "Paid" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.08)", color: f.status === "Paid" ? "#15803d" : "#dc2626" }}>
+                      {f.status}
+                    </span>
+                  </div>
+                ))}
+                <p className="text-xs mt-1 pt-1 border-t" style={{ fontFamily: "'DM Mono', monospace", borderColor: "rgba(220,38,38,0.15)", color: "#dc2626", fontWeight: 700 }}>
+                  Total: ${totalFineAmount.toFixed(2)}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── LibrarianApp ───────────────────────────────────────────────────────── */
 export function LibrarianApp({
-  role = "librarian", books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans, reservations, onEditMember, onDeleteMember,
+  role = "librarian", books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans, reservations, onEditMember, onDeleteMember, fines,
 }: {
   role?: "librarian" | "assistant";
   books: BookItem[];
@@ -671,6 +753,7 @@ export function LibrarianApp({
   reservations: Reservation[];
   onEditMember: (memberId: string, data: Partial<Member>) => void;
   onDeleteMember: (memberId: string, localId: number) => void;
+  fines?: FineRecord[];
 }) {
   const isAssistant = role === "assistant";
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -685,6 +768,7 @@ export function LibrarianApp({
   const [requestDateFilter, setRequestDateFilter] = useState("");
   const [detailBorrow, setDetailBorrow] = useState<BorrowRequest | null>(null);
   const [detailReturn, setDetailReturn] = useState<ReturnRequest | null>(null);
+  const [detailLoan, setDetailLoan] = useState<LoanRecord | null>(null);
 
   const filteredBooks = books.filter(b => {
     const q = search.toLowerCase();
@@ -1338,7 +1422,7 @@ export function LibrarianApp({
                     {loans.map(l => {
                       const s = STATUS_BADGE[l.status];
                       return (
-                        <tr key={l.id} className="border-b hover:bg-secondary/40 transition-colors" style={{ borderColor: "var(--border)" }}>
+                        <tr key={l.id} className="border-b hover:bg-secondary/40 transition-colors cursor-pointer" style={{ borderColor: "var(--border)" }} onClick={() => setDetailLoan(l)}>
                           <td className="py-3.5 px-5"><p style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: "var(--foreground)", fontSize: "0.9rem" }}>{l.bookTitle}</p></td>
                           <td className="py-3.5 px-5"><p className="text-sm" style={{ fontFamily: "'Inter', sans-serif", color: "var(--foreground)" }}>{l.memberName}</p></td>
                           <td className="py-3.5 px-5"><p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{l.borrowed}</p></td>
@@ -1390,6 +1474,16 @@ export function LibrarianApp({
           members={members}
           onClose={() => setDetailReturn(null)}
           onConfirm={() => { onConfirmReturn(detailReturn.id); setDetailReturn(null); }}
+        />
+      )}
+
+      {detailLoan && (
+        <LoanDetailModal
+          loan={detailLoan}
+          members={members}
+          books={books}
+          fines={fines}
+          onClose={() => setDetailLoan(null)}
         />
       )}
     </div>
