@@ -452,6 +452,14 @@ export function MemberApp({
   onCancelReservation: (reservation: Reservation) => void;
   onPayFine?: (fineFrappeName: string) => void;
 }) {
+  const [tab, setTab] = useState<MemberTab>("browse");
+  const [search, setSearch] = useState("");
+  const [genreFilter, setGenreFilter] = useState("All");
+  const [detailBook, setDetailBook] = useState<BookItem | null>(null);
+  const [requestedBook, setRequestedBook] = useState<BookItem | null>(null);
+  const [returnStep, setReturnStep] = useState<"confirm" | "sent" | null>(null);
+  const [returningLoan, setReturningLoan] = useState<LoanRecord | null>(null);
+
   if (currentMemberId === null) {
     return <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
       <p style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.1rem", color: "var(--muted-foreground)", fontStyle: "italic" }}>Please sign in from the main login page.</p>
@@ -464,13 +472,6 @@ export function MemberApp({
       <p style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.1rem", color: "var(--muted-foreground)", fontStyle: "italic" }}>Loading member data...</p>
     </div>;
   }
-  const [tab, setTab] = useState<MemberTab>("browse");
-  const [search, setSearch] = useState("");
-  const [genreFilter, setGenreFilter] = useState("All");
-  const [detailBook, setDetailBook] = useState<BookItem | null>(null);
-  const [requestedBook, setRequestedBook] = useState<BookItem | null>(null);
-  const [returnStep, setReturnStep] = useState<"confirm" | "sent" | null>(null);
-  const [returningLoan, setReturningLoan] = useState<LoanRecord | null>(null);
 
   const tier = TIER_CONFIG[member.tier];
   const myLoans = loans.filter(l => l.memberId === member.id || l.memberFrappeName === member.memberId);
@@ -507,6 +508,10 @@ export function MemberApp({
   };
 
   const handleBorrowRequest = (book: BookItem) => {
+    if (member.status !== "active") {
+      toast.error("Account not active", { description: "Only active members can borrow books." });
+      return;
+    }
     const limits = { Bronze: 3, Silver: 5, Gold: 8 } as const;
     const maxBooks = limits[member.tier];
     const activeCount = activeLoans.length + borrowRequests.filter(r => r.memberId === member.id && r.status === "pending").length;
