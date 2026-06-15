@@ -9,8 +9,9 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import { computeGenreData, computeMonthlyData, BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord, Reservation } from "./data";
+import { computeGenreData, computeMonthlyData, BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord, Reservation, FineRecord } from "./data";
 import { createBook, updateBook, deleteBook, bookToItem, itemToBook } from "../../service/api";
+import { calculateFineAmount } from "../../service/fine";
 
 type Tab = "dashboard" | "catalog" | "members" | "loans" | "requests" | "reservations";
 
@@ -509,6 +510,150 @@ function BookCard({ book, onDelete, onEdit, isAssistant }: { book: BookItem; onD
   );
 }
 
+/* ─── Borrow Request Detail Modal ────────────────────────────────────────── */
+function BorrowRequestModal({ req, onClose, onApprove, onReject }: {
+  req: BorrowRequest; onClose: () => void;
+  onApprove: () => void; onReject: () => void;
+}) {
+  const isPending = req.status === "pending";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }} onClick={onClose}>
+      <div className="rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden bg-white" onClick={e => e.stopPropagation()}>
+        <div className="flex">
+          <div className="w-40 flex-shrink-0">
+            <img src={req.bookCover} alt={req.bookTitle} className="w-full h-full object-cover" style={{ minHeight: "260px" }} />
+          </div>
+          <div className="flex-1 p-6 flex flex-col">
+            <div className="flex items-start justify-between mb-3">
+              <span className="text-xs px-2.5 py-1 rounded-full" style={{ fontFamily: "'DM Mono', monospace", background: isPending ? "rgba(201,151,58,0.12)" : req.status === "approved" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.08)", color: isPending ? "#92400e" : req.status === "approved" ? "#15803d" : "#dc2626" }}>
+                {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+              </span>
+              <button onClick={onClose} style={{ background: "var(--secondary)", border: "none", borderRadius: "8px", padding: "6px", cursor: "pointer" }}><X size={15} color="var(--muted-foreground)" /></button>
+            </div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.2rem", color: "var(--foreground)", fontStyle: "italic" }}>{req.bookTitle}</h2>
+            <p className="mt-1 mb-4 text-sm" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{req.bookAuthor}</p>
+            <div className="flex items-center gap-2.5 p-3 rounded-xl mb-4" style={{ background: "var(--secondary)" }}>
+              <img src={req.memberAvatar} alt={req.memberName} className="w-8 h-8 rounded-full object-cover" />
+              <div>
+                <p className="text-sm" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, color: "var(--foreground)" }}>{req.memberName}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="rounded-xl p-3" style={{ background: "var(--secondary)" }}>
+                <p className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Requested</p>
+                <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", color: "var(--foreground)", fontWeight: 600 }}>{req.requestedDate}</p>
+              </div>
+              {req.dueDate && (
+                <div className="rounded-xl p-3" style={{ background: "rgba(22,163,74,0.06)" }}>
+                  <p className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Due Date</p>
+                  <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", color: "#15803d", fontWeight: 600 }}>{req.dueDate}</p>
+                </div>
+              )}
+            </div>
+            <div className="mt-auto flex gap-2">
+              {isPending ? (
+                <>
+                  <button onClick={onApprove} className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90" style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
+                    <ThumbsUp size={13} className="inline mr-1.5" /> Approve
+                  </button>
+                  <button onClick={onReject} className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626", border: "1.5px solid rgba(220,38,38,0.2)", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
+                    <ThumbsDown size={13} className="inline mr-1.5" /> Reject
+                  </button>
+                </>
+              ) : (
+                <div className="w-full py-2.5 rounded-xl text-center text-sm" style={{ background: req.status === "approved" ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)", color: req.status === "approved" ? "#16a34a" : "#dc2626", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+                  <CheckCircle2 size={14} className="inline mr-1.5" />
+                  {req.status === "approved" ? "Approved" : "Rejected"}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Return Request Detail Modal ────────────────────────────────────────── */
+function ReturnRequestModal({ req, loans, members, onClose, onConfirm }: {
+  req: ReturnRequest; loans: LoanRecord[]; members: Member[]; onClose: () => void; onConfirm: () => void;
+}) {
+  const isPending = req.status === "pending";
+  const relatedLoan = loans.find(l => l.frappeName === req.loanFrappeName || l.id === req.loanId);
+  const member = members.find(m => m.memberId === req.memberFrappeName || m.id === req.memberId);
+  const tier = member?.tier || "Bronze";
+  const dueDate = relatedLoan?.due || req.dueDate;
+  const isOverdue = isPending && dueDate && new Date(dueDate) < new Date();
+  const finePreview = isOverdue ? calculateFineAmount(tier, dueDate, new Date().toISOString().slice(0, 10)) : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }} onClick={onClose}>
+      <div className="rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden bg-white" onClick={e => e.stopPropagation()}>
+        <div className="flex">
+          <div className="w-40 flex-shrink-0">
+            <img src={req.bookCover} alt={req.bookTitle} className="w-full h-full object-cover" style={{ minHeight: "260px" }} />
+          </div>
+          <div className="flex-1 p-6 flex flex-col">
+            <div className="flex items-start justify-between mb-3">
+              <span className="text-xs px-2.5 py-1 rounded-full" style={{ fontFamily: "'DM Mono', monospace", background: isPending ? "rgba(44,95,74,0.1)" : "rgba(22,163,74,0.1)", color: isPending ? "#2c5f4a" : "#15803d" }}>
+                {isPending ? "Awaiting Confirmation" : "Return Confirmed"}
+              </span>
+              <button onClick={onClose} style={{ background: "var(--secondary)", border: "none", borderRadius: "8px", padding: "6px", cursor: "pointer" }}><X size={15} color="var(--muted-foreground)" /></button>
+            </div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.2rem", color: "var(--foreground)", fontStyle: "italic" }}>{req.bookTitle}</h2>
+            <p className="mt-1 mb-4 text-sm" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{req.bookAuthor}</p>
+            <div className="flex items-center gap-2.5 p-3 rounded-xl mb-4" style={{ background: "var(--secondary)" }}>
+              <img src={req.memberAvatar} alt={req.memberName} className="w-8 h-8 rounded-full object-cover" />
+              <div>
+                <p className="text-sm" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, color: "var(--foreground)" }}>{req.memberName}</p>
+                <p className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{tier} · {member?.email || ""}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="rounded-xl p-3" style={{ background: "var(--secondary)" }}>
+                <p className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Borrowed</p>
+                <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", color: "var(--foreground)", fontWeight: 600 }}>{req.borrowedDate}</p>
+              </div>
+              <div className="rounded-xl p-3" style={{ background: isOverdue ? "rgba(220,38,38,0.08)" : "rgba(22,163,74,0.06)" }}>
+                <p className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Due Date</p>
+                <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", fontWeight: 600, color: isOverdue ? "#dc2626" : "#15803d" }}>{dueDate}</p>
+              </div>
+              <div className="rounded-xl p-3" style={{ background: "var(--secondary)" }}>
+                <p className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Return Requested</p>
+                <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", color: "var(--foreground)", fontWeight: 600 }}>{req.returnRequestedDate}</p>
+              </div>
+            </div>
+
+            {/* Fine preview for overdue returns */}
+            {isOverdue && finePreview > 0 && (
+              <div className="rounded-xl p-3 mb-4 flex items-center gap-3" style={{ background: "rgba(220,38,38,0.06)", border: "1.5px solid rgba(220,38,38,0.15)" }}>
+                <AlertTriangle size={20} color="#dc2626" />
+                <div>
+                  <p className="text-xs font-semibold" style={{ fontFamily: "'Inter', sans-serif", color: "#dc2626" }}>Overdue Fine Preview</p>
+                  <p className="text-sm" style={{ fontFamily: "'DM Mono', monospace", color: "#dc2626", fontWeight: 700 }}>${finePreview.toFixed(2)}</p>
+                  <p className="text-xs" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{tier} tier · ${tier === "Bronze" ? "0.50" : tier === "Silver" ? "0.25" : "0.00"}/day overdue</p>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-auto">
+              {isPending ? (
+                <button onClick={onConfirm} className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 flex items-center justify-center gap-2" style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
+                  <CheckCircle2 size={14} /> Confirm Return{finePreview > 0 ? ` (Fine: $${finePreview.toFixed(2)})` : ""}
+                </button>
+              ) : (
+                <div className="w-full py-2.5 rounded-xl text-center text-sm" style={{ background: "rgba(22,163,74,0.08)", color: "#16a34a", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
+                  <CheckCircle2 size={14} className="inline mr-1.5" /> Return Confirmed
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── LibrarianApp ───────────────────────────────────────────────────────── */
 export function LibrarianApp({
   role = "librarian", books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans, reservations, onEditMember, onDeleteMember,
@@ -538,6 +683,8 @@ export function LibrarianApp({
   const [memberSearch, setMemberSearch] = useState("");
   const [requestSearch, setRequestSearch] = useState("");
   const [requestDateFilter, setRequestDateFilter] = useState("");
+  const [detailBorrow, setDetailBorrow] = useState<BorrowRequest | null>(null);
+  const [detailReturn, setDetailReturn] = useState<ReturnRequest | null>(null);
 
   const filteredBooks = books.filter(b => {
     const q = search.toLowerCase();
@@ -975,8 +1122,9 @@ export function LibrarianApp({
                     };
                     const ss = statusStyles[req.status];
                     return (
-                      <div key={req.id} className="rounded-2xl border bg-white overflow-hidden transition-all hover:shadow-md"
-                        style={{ borderColor: isPending ? "rgba(201,151,58,0.22)" : "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                      <div key={req.id} className="rounded-2xl border bg-white overflow-hidden transition-all hover:shadow-md cursor-pointer"
+                        style={{ borderColor: isPending ? "rgba(201,151,58,0.22)" : "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
+                        onClick={() => setDetailBorrow(req)}>
                         <div className="flex items-center gap-5 p-5">
                           {/* Book cover */}
                           <img src={req.bookCover} alt={req.bookTitle} className="w-14 h-20 object-cover rounded-xl flex-shrink-0 shadow-sm" />
@@ -1019,14 +1167,14 @@ export function LibrarianApp({
                           {isPending && (
                             <div className="flex flex-col gap-2 flex-shrink-0">
                               <button
-                                onClick={() => onUpdateBorrowRequest(req.id, "approved")}
+                                onClick={e => { e.stopPropagation(); onUpdateBorrowRequest(req.id, "approved"); }}
                                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm hover:opacity-90 transition-all"
                                 style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}
                               >
                                 <ThumbsUp size={13} /> Approve
                               </button>
                               <button
-                                onClick={() => onUpdateBorrowRequest(req.id, "rejected")}
+                                onClick={e => { e.stopPropagation(); onUpdateBorrowRequest(req.id, "rejected"); }}
                                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm hover:opacity-80 transition-all"
                                 style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626", border: "1.5px solid rgba(220,38,38,0.2)", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}
                               >
@@ -1058,8 +1206,9 @@ export function LibrarianApp({
                         {filteredReturnRequests.map(req => {
                           const isPending = req.status === "pending";
                           return (
-                            <div key={req.id} className="rounded-2xl border bg-white overflow-hidden transition-all hover:shadow-md"
-                              style={{ borderColor: isPending ? "rgba(44,95,74,0.22)" : "rgba(22,163,74,0.2)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                            <div key={req.id} className="rounded-2xl border bg-white overflow-hidden transition-all hover:shadow-md cursor-pointer"
+                              style={{ borderColor: isPending ? "rgba(44,95,74,0.22)" : "rgba(22,163,74,0.2)", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}
+                              onClick={() => setDetailReturn(req)}>
                               <div className="flex items-center gap-5 p-5">
                                 <img src={req.bookCover} alt={req.bookTitle} className="w-14 h-20 object-cover rounded-xl flex-shrink-0 shadow-sm" />
                                 <div className="flex-1 min-w-0">
@@ -1090,7 +1239,7 @@ export function LibrarianApp({
                                 </div>
                                 {isPending ? (
                                   <button
-                                    onClick={() => onConfirmReturn(req.id)}
+                                    onClick={e => { e.stopPropagation(); onConfirmReturn(req.id); }}
                                     className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm hover:opacity-90 transition-all"
                                     style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600 }}>
                                     <CheckCircle2 size={13} /> Confirm Return
@@ -1222,6 +1371,25 @@ export function LibrarianApp({
           book={editBook}
           onClose={() => setEditBook(null)}
           onSave={updated => onBooksChange(books.map(b => b.id === updated.id ? updated : b))}
+        />
+      )}
+
+      {detailBorrow && (
+        <BorrowRequestModal
+          req={detailBorrow}
+          onClose={() => setDetailBorrow(null)}
+          onApprove={() => { onUpdateBorrowRequest(detailBorrow.id, "approved"); setDetailBorrow(null); }}
+          onReject={() => { onUpdateBorrowRequest(detailBorrow.id, "rejected"); setDetailBorrow(null); }}
+        />
+      )}
+
+      {detailReturn && (
+        <ReturnRequestModal
+          req={detailReturn}
+          loans={loans}
+          members={members}
+          onClose={() => setDetailReturn(null)}
+          onConfirm={() => { onConfirmReturn(detailReturn.id); setDetailReturn(null); }}
         />
       )}
     </div>
