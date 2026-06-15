@@ -542,6 +542,17 @@ export default function App() {
     }
   };
 
+  const payFine = async (fineFrappeName: string) => {
+    try {
+      await updateFine(fineFrappeName, { status: "Paid", paid_date: new Date().toISOString().slice(0, 10) });
+      setFines(prev => prev.map(f => f.frappeName === fineFrappeName ? { ...f, status: "Paid" as const, paidDate: new Date().toISOString().slice(0, 10) } : f));
+      toast.success("Fine marked as paid");
+    } catch (err) {
+      toast.error("Failed to update fine");
+      console.error(err);
+    }
+  };
+
   const confirmReturn = (id: number) => {
     setReturnRequests(prev => {
       const req = prev.find(r => r.id === id);
@@ -660,6 +671,7 @@ export default function App() {
         loans={loans}
         reservations={reservations}
         fines={fines}
+        onPayFine={payFine}
         onEditMember={editMember}
         onDeleteMember={deleteMember}
       />
@@ -681,6 +693,7 @@ export default function App() {
         reservations={reservations}
         onAddReservation={addReservation}
         onCancelReservation={cancelReservation}
+        onPayFine={payFine}
       />
     );
     return null;

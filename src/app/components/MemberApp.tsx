@@ -450,6 +450,7 @@ export function MemberApp({
   reservations: Reservation[];
   onAddReservation: (bookId: string, memberId: string, priority: "Normal" | "Priority") => void;
   onCancelReservation: (reservation: Reservation) => void;
+  onPayFine?: (fineFrappeName: string) => void;
 }) {
   if (currentMemberId === null) {
     return <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
@@ -1083,6 +1084,13 @@ export function MemberApp({
                         <span className="text-sm font-bold" style={{ fontFamily: "'DM Mono', monospace", color: f.status === "Unpaid" ? "#dc2626" : "#16a34a" }}>
                           ${f.amount.toFixed(2)}
                         </span>
+                        {f.status === "Unpaid" && f.frappeName && (
+                          <button onClick={() => onPayFine?.(f.frappeName!)}
+                            className="text-xs px-2.5 py-1.5 rounded-lg transition-all hover:opacity-80 ml-2"
+                            style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
+                            Pay
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

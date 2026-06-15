@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { computeGenreData, computeMonthlyData, BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord, Reservation, FineRecord } from "./data";
 import { createBook, updateBook, deleteBook, bookToItem, itemToBook } from "../../service/api";
-import { calculateFineAmount } from "../../service/fine";
+import { calculateFineAmount, updateFine } from "../../service/fine";
 
 type Tab = "dashboard" | "catalog" | "members" | "loans" | "requests" | "reservations";
 
@@ -655,8 +655,8 @@ function ReturnRequestModal({ req, loans, members, onClose, onConfirm }: {
 }
 
 /* ─── Loan Detail Modal ──────────────────────────────────────────────────── */
-function LoanDetailModal({ loan, members, books, fines, onClose }: {
-  loan: LoanRecord; members: Member[]; books: BookItem[]; fines?: FineRecord[]; onClose: () => void;
+function LoanDetailModal({ loan, members, books, fines, onClose, onPayFine }: {
+  loan: LoanRecord; members: Member[]; books: BookItem[]; fines?: FineRecord[]; onClose: () => void; onPayFine?: (name: string) => void;
 }) {
   const member = members.find(m => m.memberId === loan.memberFrappeName || m.id === loan.memberId);
   const book = books.find(b => b.isbn === loan.bookIsbn || b.id === loan.bookId);
@@ -719,9 +719,18 @@ function LoanDetailModal({ loan, members, books, fines, onClose }: {
                       <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "#dc2626" }}>${f.amount.toFixed(2)}</span>
                       <span className="text-xs ml-2" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{f.reason}</span>
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded" style={{ fontFamily: "'DM Mono', monospace", background: f.status === "Paid" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.08)", color: f.status === "Paid" ? "#15803d" : "#dc2626" }}>
-                      {f.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-0.5 rounded" style={{ fontFamily: "'DM Mono', monospace", background: f.status === "Paid" ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.08)", color: f.status === "Paid" ? "#15803d" : "#dc2626" }}>
+                        {f.status}
+                      </span>
+                      {f.status === "Unpaid" && f.frappeName && (
+                        <button onClick={() => onPayFine?.(f.frappeName!)}
+                          className="text-xs px-2 py-0.5 rounded-lg transition-all hover:opacity-80"
+                          style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
+                          Pay
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
                 <p className="text-xs mt-1 pt-1 border-t" style={{ fontFamily: "'DM Mono', monospace", borderColor: "rgba(220,38,38,0.15)", color: "#dc2626", fontWeight: 700 }}>
@@ -754,6 +763,7 @@ export function LibrarianApp({
   onEditMember: (memberId: string, data: Partial<Member>) => void;
   onDeleteMember: (memberId: string, localId: number) => void;
   fines?: FineRecord[];
+  onPayFine?: (fineFrappeName: string) => void;
 }) {
   const isAssistant = role === "assistant";
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -1484,6 +1494,7 @@ export function LibrarianApp({
           books={books}
           fines={fines}
           onClose={() => setDetailLoan(null)}
+          onPayFine={onPayFine}
         />
       )}
     </div>
