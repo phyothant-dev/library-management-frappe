@@ -1,5 +1,4 @@
 import axios from "axios";
-import type { BorrowRequest, ReturnRequest, LoanRecord } from "../app/components/data";
 
 const BASE_URL = import.meta.env.VITE_FRAPPE_BASE_URL;
 
@@ -145,31 +144,3 @@ export async function updateReturnRequest(
   return res.data.data;
 }
 
-export function frappeLoanToLoanRecord(
-  l: FrappeLoan,
-  memberLookup: Map<string, { avatar?: string }>,
-): LoanRecord {
-  const m = memberLookup.get(l.member);
-  const now = new Date();
-  const due = new Date(l.due_date);
-  const isOverdue = l.status === "Active" && due < now;
-  return {
-    id: Date.now() + Math.random(),
-    frappeName: l.name,
-    bookId: l.book,
-    bookIsbn: l.book,
-    memberId: 0,
-    memberFrappeName: l.member,
-    bookTitle: l.book_title,
-    memberName: l.member_name,
-    borrowed: l.borrowed_date,
-    due: l.due_date,
-    returned: l.return_date || null,
-    renewals: l.renewals ?? 0,
-    status: l.status === "Returned"
-      ? "returned"
-      : isOverdue
-        ? "overdue"
-        : "active",
-  };
-}

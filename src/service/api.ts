@@ -37,11 +37,6 @@ export async function getBooks(): Promise<FrappeBook[]> {
   return res.data.data;
 }
 
-export async function getBook(isbn: string): Promise<FrappeBook> {
-  const res = await api.get(`/api/resource/Library%20Book/${encodeURIComponent(isbn)}`);
-  return res.data.data;
-}
-
 export async function createBook(data: Partial<FrappeBook>) {
   const res = await api.post("/api/resource/Library%20Book", data);
   return res.data.data;

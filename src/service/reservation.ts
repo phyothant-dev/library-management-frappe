@@ -30,28 +30,6 @@ export async function getReservations(): Promise<FrappeReservation[]> {
   return res.data.data;
 }
 
-export async function getMemberReservations(member: string): Promise<FrappeReservation[]> {
-  const res = await api.get("/api/resource/Library%20Reservation", {
-    params: {
-      fields: JSON.stringify(["*"]),
-      filters: JSON.stringify([["member", "=", member]]),
-      limit_page_length: 50,
-    },
-  });
-  return res.data.data;
-}
-
-export async function getActiveReservations(book: string): Promise<FrappeReservation[]> {
-  const res = await api.get("/api/resource/Library%20Reservation", {
-    params: {
-      fields: JSON.stringify(["*"]),
-      filters: JSON.stringify([["book", "=", book], ["status", "=", "Active"]]),
-      limit_page_length: 50,
-    },
-  });
-  return res.data.data;
-}
-
 export async function createReservation(data: {
   book: string;
   member: string;

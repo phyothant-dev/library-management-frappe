@@ -1,6 +1,6 @@
 // src/service/member.ts
 import axios from "axios";
-import type { FrappeMember, LibraryMember, MemberTier, MemberStatus } from "../types/member";
+import type { FrappeMember, MemberTier, MemberStatus } from "../types/member";
 import type { Member } from "../app/components/data";
 
 const BASE_URL = import.meta.env.VITE_FRAPPE_BASE_URL;
@@ -60,11 +60,6 @@ export async function getMembers(): Promise<FrappeMember[]> {
   return res.data.data;
 }
 
-export async function getMember(name: string): Promise<FrappeMember> {
-  const res = await api.get(`/api/resource/Library%20Member/${encodeURIComponent(name)}`);
-  return res.data.data;
-}
-
 export async function createMember(data: Partial<FrappeMember>) {
   const res = await api.post("/api/resource/Library%20Member", data);
   return res.data.data;
@@ -88,44 +83,6 @@ export async function updateMember(name: string, data: Partial<FrappeMember>) {
 export async function deleteMember(name: string) {
   const res = await api.delete(`/api/resource/Library%20Member/${encodeURIComponent(name)}`);
   return res.data;
-}
-
-export function memberToItem(m: FrappeMemberRaw): LibraryMember {
-  return {
-    id: m.name,
-    name: m.full_name,
-    email: m.email,
-    phone: m.phone || "",
-    tier: m.tier,
-    status: m.status,
-    avatarUrl: m.avatar
-      ? (m.avatar.startsWith("http") ? m.avatar : `${BASE_URL}${m.avatar}`)
-      : "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&w=80&h=80&q=80",
-    memberSince: toDisplayDate(m.member_since),
-    expiryDate: toDisplayDate(m.expiry_date),
-    activeLoans: m.active_loans,
-    totalBorrowed: m.total_borrowed,
-    memberId: m.name,
-    savedBooks: Array.isArray(m.saved_books) ? m.saved_books : (typeof m.saved_books === "string" ? JSON.parse(m.saved_books) : []),
-  };
-}
-
-export function itemToMember(item: Partial<LibraryMember>) {
-  return {
-    full_name: item.name,
-    email: item.email,
-    phone: item.phone,
-    tier: item.tier,
-    status: item.status || "Active",
-    avatar: item.avatarUrl
-      ? item.avatarUrl.replace(`${BASE_URL}`, "")
-      : "",
-    member_since: item.memberSince ? toMySQLDate(item.memberSince) : "",
-    expiry_date: item.expiryDate ? toMySQLDate(item.expiryDate) : "",
-    active_loans: item.activeLoans || 0,
-    total_borrowed: item.totalBorrowed || 0,
-    saved_books: item.savedBooks || [],
-  };
 }
 
 export function hashId(s: string): number {

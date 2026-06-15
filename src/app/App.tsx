@@ -10,11 +10,10 @@ import {
   getBorrowRequests, createBorrowRequest, updateBorrowRequest as updateFrappeBorrowRequest,
   getLoans as fetchLoans, createLoan, updateLoan as updateFrappeLoan,
   getReturnRequests, createReturnRequest, updateReturnRequest as updateFrappeReturnRequest,
-  frappeLoanToLoanRecord,
 } from "../service/loan";
-import { getFines, getMemberFines, createFine, updateFine, frappeFineToFineRecord, calculateFineAmount } from "../service/fine";
+import { getFines, createFine, updateFine, frappeFineToFineRecord, calculateFineAmount } from "../service/fine";
 import {
-  getReservations, getActiveReservations, createReservation, updateReservation as updateFrappeReservation,
+  getReservations, createReservation, updateReservation as updateFrappeReservation,
   frappeReservationToReservation,
 } from "../service/reservation";
 import { login as frappeLogin, determineRole } from "../service/auth";

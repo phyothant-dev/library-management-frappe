@@ -52,17 +52,6 @@ export async function getFines(): Promise<FrappeFine[]> {
   return res.data.data;
 }
 
-export async function getMemberFines(member: string): Promise<FrappeFine[]> {
-  const res = await api.get("/api/resource/Fine", {
-    params: {
-      fields: JSON.stringify(["*"]),
-      filters: JSON.stringify([["member", "=", member]]),
-      limit_page_length: 50,
-    },
-  });
-  return res.data.data;
-}
-
 export async function createFine(data: {
   member: string;
   loan?: string;

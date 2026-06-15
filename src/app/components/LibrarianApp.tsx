@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { computeGenreData, computeMonthlyData, BookItem, Member, BorrowRequest, ReturnRequest, LoanRecord, Reservation, FineRecord } from "./data";
 import { createBook, updateBook, deleteBook, bookToItem, itemToBook } from "../../service/api";
-import { calculateFineAmount, updateFine } from "../../service/fine";
+import { calculateFineAmount } from "../../service/fine";
 
 type Tab = "dashboard" | "catalog" | "members" | "loans" | "requests" | "reservations";
 
@@ -776,6 +776,8 @@ export function LibrarianApp({
   const [memberSearch, setMemberSearch] = useState("");
   const [requestSearch, setRequestSearch] = useState("");
   const [requestDateFilter, setRequestDateFilter] = useState("");
+  const [loanSearch, setLoanSearch] = useState("");
+  const [loanDateFilter, setLoanDateFilter] = useState("");
   const [detailBorrow, setDetailBorrow] = useState<BorrowRequest | null>(null);
   const [detailReturn, setDetailReturn] = useState<ReturnRequest | null>(null);
   const [detailLoan, setDetailLoan] = useState<LoanRecord | null>(null);
@@ -804,6 +806,12 @@ export function LibrarianApp({
     const q = requestSearch.toLowerCase();
     const matchesSearch = r.bookTitle.toLowerCase().includes(q) || r.memberName.toLowerCase().includes(q) || r.bookAuthor.toLowerCase().includes(q);
     const matchesDate = !requestDateFilter || r.returnRequestedDate === requestDateFilter;
+    return matchesSearch && matchesDate;
+  });
+  const filteredLoans = loans.filter(l => {
+    const q = loanSearch.toLowerCase();
+    const matchesSearch = l.bookTitle.toLowerCase().includes(q) || l.memberName.toLowerCase().includes(q);
+    const matchesDate = !loanDateFilter || l.borrowed === loanDateFilter || l.due === loanDateFilter;
     return matchesSearch && matchesDate;
   });
 
@@ -1419,8 +1427,29 @@ export function LibrarianApp({
                 ))}
               </div>
               <div className="rounded-2xl border bg-white overflow-hidden" style={{ borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                <div className="px-6 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+                <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
                   <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "var(--foreground)" }}>All Loan Records</h2>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" color="var(--muted-foreground)" />
+                      <input value={loanSearch} onChange={e => setLoanSearch(e.target.value)} placeholder="Search by title or borrower..."
+                        className="pl-9 pr-4 py-2 rounded-xl text-sm outline-none"
+                        style={{ background: "#fff", border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif", width: "240px" }} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar size={14} color="var(--muted-foreground)" />
+                      <input type="date" value={loanDateFilter} onChange={e => setLoanDateFilter(e.target.value)}
+                        className="rounded-xl border bg-white px-3 py-2 text-sm outline-none"
+                        style={{ border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'DM Mono', monospace" }} />
+                      {loanDateFilter && (
+                        <button onClick={() => setLoanDateFilter("")}
+                          className="text-xs px-2 py-1.5 rounded-lg border hover:bg-gray-50 transition-all"
+                          style={{ fontFamily: "'Inter', sans-serif", borderColor: "var(--border)", color: "var(--muted-foreground)" }}>
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <table className="w-full">
                   <thead><tr style={{ borderBottom: "1px solid var(--border)" }}>
@@ -1429,7 +1458,9 @@ export function LibrarianApp({
                     ))}
                   </tr></thead>
                   <tbody>
-                    {loans.map(l => {
+                     {filteredLoans.length === 0 ? (
+                      <tr><td colSpan={5} className="text-center py-16 text-sm" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>No loan records match your filters.</td></tr>
+                    ) : filteredLoans.map(l => {
                       const s = STATUS_BADGE[l.status];
                       return (
                         <tr key={l.id} className="border-b hover:bg-secondary/40 transition-colors cursor-pointer" style={{ borderColor: "var(--border)" }} onClick={() => setDetailLoan(l)}>
