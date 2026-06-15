@@ -459,6 +459,11 @@ export function MemberApp({
   }
 
   const member = members.find(m => m.id === currentMemberId) ?? members[0];
+  if (!member) {
+    return <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
+      <p style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.1rem", color: "var(--muted-foreground)", fontStyle: "italic" }}>Loading member data...</p>
+    </div>;
+  }
   const [tab, setTab] = useState<MemberTab>("browse");
   const [search, setSearch] = useState("");
   const [genreFilter, setGenreFilter] = useState("All");

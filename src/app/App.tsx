@@ -273,17 +273,20 @@ export default function App() {
   }, []);
 
   const addMember = async (m: Member) => {
-    setMembers(prev => [...prev, m]);
     try {
       const user = await createUser(m.email, m.name, ["Library Member"]);
       const payload = { ...memberToFrappePayload(m), user: user.name };
-      await createMember(payload);
+      const created = await createMember(payload);
+      setMembers(prev => [...prev, { ...m, memberId: created.name }]);
+      toast.success("Member registered", {
+        description: `${m.name} has been added to the library.`,
+      });
     } catch (err) {
       console.error("Failed to save member to Frappe:", err);
+      toast.error("Failed to register member", {
+        description: "Could not save to server. The member was not added.",
+      });
     }
-    toast.success("Member registered", {
-      description: `${m.name} has been added to the library.`,
-    });
   };
 
   const addBorrowRequest = async (req: BorrowRequest) => {

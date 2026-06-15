@@ -69,7 +69,7 @@ export async function createUser(email: string, firstName: string, roles: string
   const res = await api.post("/api/resource/User", {
     email,
     first_name: firstName,
-    send_welcome_email: 1,
+    send_welcome_email: true,
     roles: roles.map(r => ({ role: r })),
   });
   return res.data.data;
