@@ -662,7 +662,7 @@ function LoanDetailModal({ loan, members, books, fines, onClose, onPayFine }: {
   const book = books.find(b => b.isbn === loan.bookIsbn || b.id === loan.bookId);
   const loanFines = (fines || []).filter(f => f.loan === loan.frappeName);
   const totalFineAmount = loanFines.reduce((s, f) => s + f.amount, 0);
-  const s = STATUS_BADGE[loan.status];
+  const s = STATUS_BADGE[loan.status] || { bg: "#f3f4f6", color: "#6b7280", label: loan.status };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }} onClick={onClose}>
       <div className="rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden bg-white" onClick={e => e.stopPropagation()}>
@@ -747,7 +747,7 @@ function LoanDetailModal({ loan, members, books, fines, onClose, onPayFine }: {
 
 /* ─── LibrarianApp ───────────────────────────────────────────────────────── */
 export function LibrarianApp({
-  role = "librarian", books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans, reservations, onEditMember, onDeleteMember, fines,
+  role = "librarian", books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans, reservations, onEditMember, onDeleteMember, fines, onPayFine,
 }: {
   role?: "librarian" | "assistant";
   books: BookItem[];
