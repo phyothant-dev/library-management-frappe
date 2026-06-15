@@ -106,7 +106,7 @@ export function memberToItem(m: FrappeMemberRaw): LibraryMember {
     activeLoans: m.active_loans,
     totalBorrowed: m.total_borrowed,
     memberId: m.name,
-    savedBooks: Array.isArray(m.saved_books) ? m.saved_books : [],
+    savedBooks: Array.isArray(m.saved_books) ? m.saved_books : (typeof m.saved_books === "string" ? JSON.parse(m.saved_books) : []),
   };
 }
 
@@ -154,7 +154,7 @@ export function frappeMemberToMember(m: FrappeMemberRaw): Member {
     tier: m.tier,
     memberId: m.name,
     expiryDate: m.expiry_date ? toDisplayDate(m.expiry_date) : "Unknown",
-    savedBooks: Array.isArray(m.saved_books) ? m.saved_books : [],
+    savedBooks: Array.isArray(m.saved_books) ? m.saved_books : (typeof m.saved_books === "string" ? JSON.parse(m.saved_books) : []),
   };
 }
 
