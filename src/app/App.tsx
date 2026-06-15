@@ -5,7 +5,7 @@ import { LibrarianApp } from "./components/LibrarianApp";
 import { MemberApp } from "./components/MemberApp";
 import { BorrowRequest, ReturnRequest, LoanRecord, FineRecord, Reservation, BookItem, Member } from "./components/data";
 import { getBooks, bookToItem, updateBook } from "../service/api";
-import { getMembers, createMember, createUser, updateMember, frappeMemberToMember, memberToFrappePayload, hashId } from "../service/member";
+import { getMembers, createMember, createUser, updateMember, deleteMember as deleteFrappeMember, frappeMemberToMember, memberToFrappePayload, hashId } from "../service/member";
 import {
   getBorrowRequests, createBorrowRequest, updateBorrowRequest as updateFrappeBorrowRequest,
   getLoans as fetchLoans, createLoan, updateLoan as updateFrappeLoan,
@@ -18,6 +18,8 @@ import {
   frappeReservationToReservation,
 } from "../service/reservation";
 import { login as frappeLogin, determineRole } from "../service/auth";
+
+const FRAPPE_BASE = import.meta.env.VITE_FRAPPE_BASE_URL;
 
 const TIER_LIMITS: Record<string, { maxBooks: number; loanPeriodDays: number; maxRenewals: number }> = {
   Bronze: { maxBooks: 3, loanPeriodDays: 21, maxRenewals: 1 },
@@ -60,7 +62,7 @@ function LoginScreen({ books, members, loans, onLogin }: { books: BookItem[]; me
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: "var(--background)", fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen flex overflow-hidden" style={{ background: "var(--background)", fontFamily: "'Inter', sans-serif" }}>
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1771647287015-f30dbb239646?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&w=900&h=1200&q=85"
@@ -195,7 +197,7 @@ export default function App() {
               bookAuthor: br.book_author || "",
               memberName: br.member_name,
               memberAvatar: member?.avatar
-                ? (member.avatar.startsWith("http") ? member.avatar : `https://phyothant.j.frappe.cloud${member.avatar}`)
+                ? (member.avatar.startsWith("http") ? member.avatar : `${FRAPPE_BASE}${member.avatar}`)
                 : "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&w=80&h=80&q=80",
               requestedDate: br.requested_date,
               status: br.status.toLowerCase() as "pending" | "approved" | "rejected",
@@ -253,7 +255,7 @@ export default function App() {
               bookAuthor: rr.book_author || "",
               memberName: rr.member_name,
               memberAvatar: member?.avatar
-                ? (member.avatar.startsWith("http") ? member.avatar : `https://phyothant.j.frappe.cloud${member.avatar}`)
+                ? (member.avatar.startsWith("http") ? member.avatar : `${FRAPPE_BASE}${member.avatar}`)
                 : "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&w=80&h=80&q=80",
               borrowedDate: rr.borrowed_date,
               dueDate: rr.due_date,
@@ -317,9 +319,10 @@ export default function App() {
         toast.error("Borrow request not yet synced to server — try again in a moment");
         return prev;
       }
+      const frappeName = req.frappeName;
       (async () => {
         try {
-          await updateFrappeBorrowRequest(req.frappeName, {
+          await updateFrappeBorrowRequest(frappeName, {
             status: status === "approved" ? "Approved" : "Rejected",
           });
           if (status === "approved") {
@@ -493,6 +496,31 @@ export default function App() {
     }
   };
 
+  const deleteMember = async (memberId: string, localId: number) => {
+    try {
+      await deleteFrappeMember(memberId);
+      setMembers(prev => prev.filter(m => m.id !== localId));
+      toast.success("Member deleted");
+    } catch (err) {
+      toast.error("Failed to delete member");
+      console.error(err);
+    }
+  };
+
+  const editMember = async (memberId: string, data: Partial<Member>) => {
+    try {
+      const tier = data.tier;
+      await updateMember(memberId, { tier, full_name: data.name, email: data.email, phone: data.phone } as any);
+      setMembers(prev => prev.map(m =>
+        m.memberId === memberId ? { ...m, ...data } : m
+      ));
+      toast.success("Member updated", { description: data.name });
+    } catch (err) {
+      toast.error("Failed to update member");
+      console.error(err);
+    }
+  };
+
   const cancelReservation = async (reservation: Reservation) => {
     if (!reservation.frappeName) return;
     try {
@@ -518,9 +546,10 @@ export default function App() {
         toast.error("Return request not yet synced");
         return prev;
       }
+      const frappeName = req.frappeName;
       (async () => {
         try {
-          await updateFrappeReturnRequest(req.frappeName, { status: "Confirmed" });
+          await updateFrappeReturnRequest(frappeName, { status: "Confirmed" });
           setReturnRequests(p =>
             p.map(r => r.id === id ? { ...r, status: "confirmed" as const } : r)
           );
@@ -613,7 +642,6 @@ export default function App() {
     if (role === "librarian" || role === "assistant") return (
       <LibrarianApp
         role={role}
-        onSwitchRole={() => { setRole(null); setCurrentMemberId(null); }}
         books={books}
         onBooksChange={setBooks}
         members={members}
@@ -624,11 +652,12 @@ export default function App() {
         onConfirmReturn={confirmReturn}
         loans={loans}
         reservations={reservations}
+        onEditMember={editMember}
+        onDeleteMember={deleteMember}
       />
     );
     if (role === "member") return (
       <MemberApp
-        onSwitchRole={() => { setRole(null); setCurrentMemberId(null); }}
         books={books}
         members={members}
         currentMemberId={currentMemberId}

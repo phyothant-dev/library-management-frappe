@@ -375,6 +375,92 @@ function AddMemberModal({ onClose, onAdd }: { onClose: () => void; onAdd: (m: Me
   );
 }
 
+/* ─── Edit Member Modal ──────────────────────────────────────────────────── */
+function EditMemberModal({ member, onClose, onSave }: { member: Member; onClose: () => void; onSave: (id: string, data: Partial<Member>) => void }) {
+  const [form, setForm] = useState({
+    name: member.name, email: member.email, phone: member.phone,
+    tier: member.tier, avatarUrl: member.avatarUrl,
+  });
+  const [saving, setSaving] = useState(false);
+  const handle = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const submit = async () => {
+    if (!form.name || !form.email) return;
+    setSaving(true);
+    try {
+      onSave(member.memberId, {
+        ...member,
+        name: form.name, email: form.email, phone: form.phone,
+        tier: form.tier as "Gold" | "Silver" | "Bronze",
+        avatarUrl: form.avatarUrl,
+      });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      <div className="rounded-2xl w-full max-w-lg shadow-2xl" style={{ background: "#fff" }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-8 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.2rem", color: "var(--foreground)" }}>Edit Member</h2>
+            <p className="text-xs mt-0.5" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Update &quot;{member.name}&quot; details</p>
+          </div>
+          <button onClick={onClose} style={{ background: "var(--secondary)", border: "none", borderRadius: "8px", padding: "8px", cursor: "pointer" }}><X size={16} color="var(--muted-foreground)" /></button>
+        </div>
+        <div className="p-8 space-y-4">
+          {[
+            { label: "Full Name *", key: "name", placeholder: "Full name" },
+            { label: "Email *", key: "email", placeholder: "email@example.com" },
+            { label: "Phone", key: "phone", placeholder: "+1 (555) 000-0000" },
+            { label: "Avatar Image URL", key: "avatarUrl", placeholder: "https://... (optional)" },
+          ].map(({ label, key, placeholder }) => (
+            <div key={key}>
+              <label className="block text-xs mb-1.5 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{label}</label>
+              <input
+                value={(form as any)[key]}
+                onChange={e => handle(key, e.target.value)}
+                placeholder={placeholder}
+                className="w-full px-3.5 py-2.5 rounded-lg outline-none text-sm"
+                style={{ background: "var(--secondary)", border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif" }}
+              />
+            </div>
+          ))}
+          <div>
+            <label className="block text-xs mb-2 uppercase tracking-wider" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Membership Tier</label>
+            <div className="grid grid-cols-3 gap-3">
+              {(["Bronze", "Silver", "Gold"] as const).map(t => {
+                const s = TIER_STYLES[t];
+                return (
+                  <button key={t} onClick={() => handle("tier", t)}
+                    className="py-2.5 rounded-lg text-sm transition-all"
+                    style={{
+                      background: form.tier === t ? s.bg : "var(--secondary)",
+                      border: `2px solid ${form.tier === t ? s.border : "var(--border)"}`,
+                      color: form.tier === t ? s.color : "var(--muted-foreground)",
+                      fontFamily: "'DM Mono', monospace", cursor: "pointer", fontWeight: form.tier === t ? 600 : 400,
+                    }}>
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 px-8 pb-7">
+          <button onClick={submit} disabled={saving}
+            className="flex-1 py-3 rounded-xl text-sm hover:opacity-90 transition-all disabled:opacity-50"
+            style={{ background: "var(--primary)", color: "#fff", fontFamily: "'Inter', sans-serif", fontWeight: 600, border: "none", cursor: "pointer" }}>
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+          <button onClick={onClose} className="px-6 py-3 rounded-xl text-sm" style={{ background: "var(--secondary)", color: "var(--foreground)", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Book Card (Librarian) ───────────────────────────────────────────────── */
 function BookCard({ book, onDelete, onEdit, isAssistant }: { book: BookItem; onDelete: (id: string) => void; onEdit?: (b: BookItem) => void; isAssistant?: boolean }) {
   const avail = book.totalCopies - book.borrowedCopies;
@@ -425,10 +511,9 @@ function BookCard({ book, onDelete, onEdit, isAssistant }: { book: BookItem; onD
 
 /* ─── LibrarianApp ───────────────────────────────────────────────────────── */
 export function LibrarianApp({
-  role = "librarian", onSwitchRole, books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans, reservations,
+  role = "librarian", books, onBooksChange, members, onAddMember, borrowRequests, onUpdateBorrowRequest, returnRequests, onConfirmReturn, loans, reservations, onEditMember, onDeleteMember,
 }: {
   role?: "librarian" | "assistant";
-  onSwitchRole: () => void;
   books: BookItem[];
   onBooksChange: (books: BookItem[]) => void;
   members: Member[];
@@ -439,6 +524,8 @@ export function LibrarianApp({
   onConfirmReturn: (id: number) => void;
   loans: LoanRecord[];
   reservations: Reservation[];
+  onEditMember: (memberId: string, data: Partial<Member>) => void;
+  onDeleteMember: (memberId: string, localId: number) => void;
 }) {
   const isAssistant = role === "assistant";
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -447,7 +534,10 @@ export function LibrarianApp({
   const [showAddBook, setShowAddBook] = useState(false);
   const [editBook, setEditBook] = useState<BookItem | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [editMember, setEditMember] = useState<Member | null>(null);
   const [memberSearch, setMemberSearch] = useState("");
+  const [requestSearch, setRequestSearch] = useState("");
+  const [requestDateFilter, setRequestDateFilter] = useState("");
 
   const filteredBooks = books.filter(b => {
     const q = search.toLowerCase();
@@ -462,6 +552,19 @@ export function LibrarianApp({
   const pendingBorrows = borrowRequests.filter(r => r.status === "pending").length;
   const pendingReturns = returnRequests.filter(r => r.status === "pending").length;
   const pendingCount = pendingBorrows + pendingReturns;
+
+  const filteredBorrowRequests = borrowRequests.filter(r => {
+    const q = requestSearch.toLowerCase();
+    const matchesSearch = r.bookTitle.toLowerCase().includes(q) || r.memberName.toLowerCase().includes(q) || r.bookAuthor.toLowerCase().includes(q);
+    const matchesDate = !requestDateFilter || r.requestedDate === requestDateFilter;
+    return matchesSearch && matchesDate;
+  });
+  const filteredReturnRequests = returnRequests.filter(r => {
+    const q = requestSearch.toLowerCase();
+    const matchesSearch = r.bookTitle.toLowerCase().includes(q) || r.memberName.toLowerCase().includes(q) || r.bookAuthor.toLowerCase().includes(q);
+    const matchesDate = !requestDateFilter || r.returnRequestedDate === requestDateFilter;
+    return matchesSearch && matchesDate;
+  });
 
   const genreData = useMemo(() => computeGenreData(books), [books]);
   const monthlyData = useMemo(() => computeMonthlyData(loans), [loans]);
@@ -531,13 +634,6 @@ export function LibrarianApp({
           })}
         </nav>
 
-        <div className="px-4 pb-6">
-          <button onClick={onSwitchRole}
-            className="w-full py-2.5 rounded-xl text-sm transition-all hover:opacity-80"
-            style={{ background: "var(--secondary)", color: "var(--muted-foreground)", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
-            Switch to Member View
-          </button>
-        </div>
       </aside>
 
       {/* Content */}
@@ -758,32 +854,50 @@ export function LibrarianApp({
                   const status = STATUS_BADGE[m.status];
                   const tier = TIER_STYLES[m.tier];
                   return (
-                    <div key={m.id} className="rounded-2xl border overflow-hidden bg-white hover:shadow-md transition-all" style={{ borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                    <div key={m.id} className="rounded-2xl border overflow-hidden bg-white hover:shadow-md transition-all group" style={{ borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
                       <div className="h-16" style={{ background: "linear-gradient(135deg, #f3f0eb 0%, #e8e4dd 100%)" }} />
                       <div className="px-5 pb-5">
                         <div className="flex items-end justify-between -mt-7 mb-4">
                           <img src={m.avatarUrl} alt={m.name} className="w-14 h-14 rounded-full object-cover border-4 border-white shadow-sm" />
                           <span className="text-xs px-2.5 py-1 rounded-full mb-1" style={{ fontFamily: "'DM Mono', monospace", background: status.bg, color: status.color }}>{status.label}</span>
                         </div>
-                        <h3 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1rem", color: "var(--foreground)" }}>{m.name}</h3>
-                        <p className="text-xs mt-0.5 mb-3" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{m.memberId}</p>
-                        <div className="space-y-1.5 mb-4">
-                          <div className="flex items-center gap-2">
-                            <Mail size={11} color="var(--muted-foreground)" />
-                            <span className="text-xs" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{m.email}</span>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h3 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1rem", color: "var(--foreground)" }}>{m.name}</h3>
+                            <p className="text-xs mt-0.5 mb-3" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{m.memberId}</p>
+                            <div className="space-y-1.5 mb-4">
+                              <div className="flex items-center gap-2">
+                                <Mail size={11} color="var(--muted-foreground)" />
+                                <span className="text-xs" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{m.email}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Phone size={11} color="var(--muted-foreground)" />
+                                <span className="text-xs" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{m.phone}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar size={11} color="var(--muted-foreground)" />
+                                <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Since {m.memberSince} · Exp. {m.expiryDate}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+                              <span className="text-xs px-2.5 py-1 rounded-full" style={{ fontFamily: "'DM Mono', monospace", background: tier.bg, color: tier.color, border: `1px solid ${tier.border}` }}>{m.tier} Member</span>
+                              <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{m.activeLoans} active · {m.totalBorrowed} total</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Phone size={11} color="var(--muted-foreground)" />
-                            <span className="text-xs" style={{ fontFamily: "'Inter', sans-serif", color: "var(--muted-foreground)" }}>{m.phone}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar size={11} color="var(--muted-foreground)" />
-                            <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>Since {m.memberSince} · Exp. {m.expiryDate}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-                          <span className="text-xs px-3 py-1.5 rounded-full" style={{ fontFamily: "'DM Mono', monospace", background: tier.bg, color: tier.color, border: `1px solid ${tier.border}` }}>{m.tier} Member</span>
-                          <span className="text-xs" style={{ fontFamily: "'DM Mono', monospace", color: "var(--muted-foreground)" }}>{m.activeLoans} active · {m.totalBorrowed} total</span>
+                          {!isAssistant && (
+                            <div className="flex flex-col gap-2 flex-shrink-0 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => setEditMember(m)}
+                                className="p-2 rounded-lg transition-all hover:opacity-80"
+                                style={{ background: "rgba(44,95,74,0.1)", border: "1.5px solid rgba(44,95,74,0.2)", cursor: "pointer" }}>
+                                <Pencil size={14} color="var(--primary)" />
+                              </button>
+                              <button onClick={() => { if (window.confirm(`Delete member "${m.name}"? This cannot be undone.`)) onDeleteMember(m.memberId, m.id); }}
+                                className="p-2 rounded-lg transition-all hover:opacity-80"
+                                style={{ background: "rgba(220,38,38,0.08)", border: "1.5px solid rgba(220,38,38,0.2)", cursor: "pointer" }}>
+                                <Trash2 size={14} color="#dc2626" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -811,7 +925,30 @@ export function LibrarianApp({
                 ))}
               </div>
 
-              {borrowRequests.length === 0 && returnRequests.length === 0 ? (
+              {/* Search + Date filter */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 max-w-sm">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" color="var(--muted-foreground)" />
+                  <input value={requestSearch} onChange={e => setRequestSearch(e.target.value)} placeholder="Search by title, author, or member..."
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none"
+                    style={{ background: "#fff", border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'Inter', sans-serif" }} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar size={14} color="var(--muted-foreground)" />
+                  <input type="date" value={requestDateFilter} onChange={e => setRequestDateFilter(e.target.value)}
+                    className="rounded-xl border bg-white px-3 py-2.5 text-sm outline-none"
+                    style={{ border: "1.5px solid var(--border)", color: "var(--foreground)", fontFamily: "'DM Mono', monospace" }} />
+                  {requestDateFilter && (
+                    <button onClick={() => setRequestDateFilter("")}
+                      className="text-xs px-2 py-1.5 rounded-lg border hover:bg-gray-50 transition-all"
+                      style={{ fontFamily: "'Inter', sans-serif", borderColor: "var(--border)", color: "var(--muted-foreground)" }}>
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {filteredBorrowRequests.length === 0 && filteredReturnRequests.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-28 rounded-2xl border bg-white" style={{ borderColor: "var(--border)" }}>
                   <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: "rgba(44,95,74,0.07)" }}>
                     <Send size={28} color="var(--primary)" style={{ opacity: 0.4 }} />
@@ -822,14 +959,14 @@ export function LibrarianApp({
               ) : (
                 <div className="space-y-8">
                   {/* Borrow requests */}
-                  {borrowRequests.length > 0 && (
+                  {filteredBorrowRequests.length > 0 && (
                     <section>
                       <h2 className="mb-3" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1rem", color: "var(--foreground)" }}>
                         Borrow Requests
                         {pendingBorrows > 0 && <span className="ml-2 text-xs px-2 py-0.5 rounded-full align-middle" style={{ fontFamily: "'DM Mono', monospace", background: "rgba(201,151,58,0.12)", color: "#92400e" }}>{pendingBorrows} pending</span>}
                       </h2>
                   <div className="space-y-3">
-                  {borrowRequests.map(req => {
+                  {filteredBorrowRequests.map(req => {
                     const isPending = req.status === "pending";
                     const statusStyles: Record<string, { bg: string; color: string; label: string }> = {
                       pending:  { bg: "rgba(201,151,58,0.1)",  color: "#92400e", label: "Pending" },
@@ -911,14 +1048,14 @@ export function LibrarianApp({
                   )}
 
                   {/* Return requests */}
-                  {returnRequests.length > 0 && (
+                  {filteredReturnRequests.length > 0 && (
                     <section>
                       <h2 className="mb-3" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1rem", color: "var(--foreground)" }}>
                         Return Requests
                         {pendingReturns > 0 && <span className="ml-2 text-xs px-2 py-0.5 rounded-full align-middle" style={{ fontFamily: "'DM Mono', monospace", background: "rgba(44,95,74,0.1)", color: "#2c5f4a" }}>{pendingReturns} pending</span>}
                       </h2>
                       <div className="space-y-3">
-                        {returnRequests.map(req => {
+                        {filteredReturnRequests.map(req => {
                           const isPending = req.status === "pending";
                           return (
                             <div key={req.id} className="rounded-2xl border bg-white overflow-hidden transition-all hover:shadow-md"
@@ -1070,6 +1207,16 @@ export function LibrarianApp({
       </div>
 
       {showAddMember && <AddMemberModal onClose={() => setShowAddMember(false)} onAdd={onAddMember} />}
+      {editMember && (
+        <EditMemberModal
+          member={editMember}
+          onClose={() => setEditMember(null)}
+          onSave={(id, data) => {
+            onEditMember(id, data);
+            setEditMember(null);
+          }}
+        />
+      )}
       {editBook && (
         <EditBookModal
           book={editBook}

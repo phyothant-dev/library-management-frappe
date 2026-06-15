@@ -164,7 +164,7 @@ export function memberToFrappePayload(member: Member) {
     email: member.email,
     phone: member.phone || "",
     tier: member.tier,
-    status: member.status.charAt(0).toUpperCase() + member.status.slice(1),
+    status: (member.status.charAt(0).toUpperCase() + member.status.slice(1)) as MemberStatus,
     avatar: member.avatarUrl || "",
     member_since: toMySQLDate(member.memberSince),
     expiry_date: toMySQLDate(member.expiryDate),

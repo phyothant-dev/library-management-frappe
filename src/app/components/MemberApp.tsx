@@ -433,9 +433,8 @@ const MEMBER_STATUS_STYLE: Record<string, { bg: string; color: string; label: st
 };
 
 export function MemberApp({
-  onSwitchRole, books, members, currentMemberId, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest, loans, fines, onToggleSavedBook, onRenewMembership, onRenewLoan, reservations, onAddReservation, onCancelReservation,
+  books, members, currentMemberId, borrowRequests, onAddRequest, returnRequests, onAddReturnRequest, loans, fines, onToggleSavedBook, onRenewMembership, onRenewLoan, reservations, onAddReservation, onCancelReservation,
 }: {
-  onSwitchRole: () => void;
   books: BookItem[];
   members: Member[];
   currentMemberId: number | null;
@@ -616,13 +615,6 @@ export function MemberApp({
           })}
         </nav>
 
-        <div className="px-4 pb-6">
-          <button onClick={onSwitchRole}
-            className="w-full py-2.5 rounded-xl text-sm hover:opacity-80 transition-all"
-            style={{ background: "var(--secondary)", color: "var(--muted-foreground)", border: "1px solid var(--border)", cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
-            Switch to Librarian View
-          </button>
-        </div>
       </aside>
 
       {/* Main */}
@@ -1019,6 +1011,7 @@ export function MemberApp({
                 </div>
               </div>
 
+
               <div className="rounded-2xl border bg-white p-6" style={{ borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
                 <h3 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.1rem", color: "var(--foreground)", marginBottom: "1rem" }}>Membership Tiers</h3>
                 <div className="grid grid-cols-3 gap-4">
@@ -1051,7 +1044,7 @@ export function MemberApp({
               </div>
 
               <div className="rounded-2xl border bg-white p-6" style={{ borderColor: "var(--border)", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                <h3 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.1rem", color: "var(--foreground)", marginBottom: "1rem" }}>Reading History</h3>
+                  <h3 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.1rem", color: "var(--foreground)", marginBottom: "1rem" }}>Reading History</h3>
                 <div className="grid grid-cols-3 gap-4">
                   {[
                     { label: "Books Read", value: member.totalBorrowed, icon: BookOpen },
