@@ -170,6 +170,6 @@ export function memberToFrappePayload(member: Member) {
     expiry_date: toMySQLDate(member.expiryDate),
     active_loans: member.activeLoans || 0,
     total_borrowed: member.totalBorrowed || 0,
-    saved_books: member.savedBooks || [],
+    saved_books: JSON.stringify(member.savedBooks || []),
   };
 }

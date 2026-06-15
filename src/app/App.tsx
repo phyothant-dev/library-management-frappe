@@ -431,9 +431,16 @@ export default function App() {
       m.id === memberId ? { ...m, savedBooks: next } : m
     ));
     try {
-      await updateMember(member.memberId, { saved_books: next } as any);
-    } catch (err) {
+      await updateMember(member.memberId, { saved_books: JSON.stringify(next) } as any);
+      toast.success(saved.includes(bookIsbn) ? "Book removed from saved" : "Book saved");
+    } catch (err: any) {
+      const msg = err?.response?.data?._error_message || err?.response?.data?.message || err?.message;
+      toast.error(`Failed to sync: ${msg}`);
       console.error("Failed to sync saved books:", err);
+      // revert local state
+      setMembers(prev => prev.map(m =>
+        m.id === memberId ? { ...m, savedBooks: saved } : m
+      ));
     }
   };
 
